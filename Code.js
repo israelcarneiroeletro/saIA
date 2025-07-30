@@ -1,7 +1,7 @@
 // =================== CONFIGURAÇÕES GLOBAIS ===================
 // AVISO: Mantenha sua chave de API segura. Use PropertiesService em produção.
 // =================== CONFIGURAÇÕES ===================
-const GEMINI_API_KEY = 'AIzaSyBsw7ylNp0YJfLER7pbtQaRqtgkYAXIQWY'; // <<< IMPORTANTE: SUBSTITUA PELA SUA CHAVE
+const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY'); 
 
 const USE_FEW_SHOT_LEARNING = false; 
 
