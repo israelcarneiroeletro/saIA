@@ -1,0 +1,1351 @@
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  // ==================== ESTADO DA APLICAÇÃO ====================
+  let state = {
+    ui: {
+      driveWidget: {
+        status: 'IDLE', // IDLE, LOADING, SUCCESS, ERROR
+        isCollapsed: false,
+      },
+      // ... (o resto do estado da UI, como a tela principal)
+    },
+    data: {
+      rootFolderId: null,
+      analysisQueue: [],
+      currentAnalysisIndex: -1,
+      // ... (o resto dos dados)
+    },
+    // ... (outros estados globais)
+  };
+  
+  // ==================== ELEMENTOS DO DOM ====================
+  const landingPage = document.getElementById('landing-page');
+  const mainScreen = document.getElementById('main-screen');
+  const spinner = document.getElementById('spinner-overlay');
+  const spinnerText = document.getElementById('spinner-text');
+  
+  // --- Elementos do Widget do Drive ---
+  const driveWidget = document.querySelector('.drive-widget');
+  const widgetHeader = driveWidget.querySelector('.widget-header');
+  const inputSection = document.getElementById('input-section');
+  const folderInput = document.getElementById('folder-link-input');
+  const mapFolderBtn = document.getElementById('map-folder-btn');
+  const setupFeedback = document.getElementById('setup-feedback');
+  const resultsSection = document.getElementById('results-section');
+  const folderList = document.getElementById('folder-list');
+  const selectAllBtn = document.getElementById('select-all-btn');
+  const startAnalysisBtn = document.getElementById('start-analysis-btn');
+
+  // Elementos da Tela Principal de Análise
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const sidebar = document.getElementById('sidebar');
+  const queueList = document.getElementById('queue-list');
+  const currentFolderName = document.getElementById('current-folder-name');
+  const nextFolderBtn = document.getElementById('next-folder-btn');
+  const imageStackContainer = document.getElementById('image-stack-container');
+  const imageStack = document.getElementById('image-stack');
+  const collapseGridBtn = document.getElementById('collapse-grid-btn');
+  const analysisDetails = document.getElementById('analysis-details');
+  const openSheetBtn = document.getElementById('open-sheet-btn');
+  const openInDriveBtn = document.getElementById('open-in-drive-btn');
+
+  // ... (resto dos elementos do DOM, modais etc. permanecem os mesmos)
+  // Elementos dos Modais
+  const addOccurrenceModal = document.getElementById('add-occurrence-modal');
+  const closeAddOccurrenceBtn = document.getElementById('close-add-occurrence-modal');
+  const saveOccurrenceBtn = document.getElementById('save-occurrence-btn');
+  const addOccurrenceModalContainer = document.getElementById('add-occurrence-modal');
+  const occurrenceDescriptionTextarea = document.getElementById('occurrence-description');
+  
+  // --- Elementos do Novo Dropdown Personalizado ---
+  const customSelect = document.getElementById('custom-occurrence-select');
+  const customSelectValue = customSelect.querySelector('.custom-select-selected-value');
+  const customSelectText = customSelect.querySelector('.custom-select-selected-value .text');
+  const customSelectOptions = customSelect.querySelector('.custom-select-options');
+  const customSelectSearchInput = customSelect.querySelector('.custom-select-search input');
+  const customSelectOptionsList = customSelect.querySelector('.options-list');
+
+  const imageModal = document.getElementById('image-modal');
+  const imageModalImg = document.getElementById('image-modal-img');
+  const imageModalClose = document.getElementById('image-modal-close');
+  const imageModalPrev = document.getElementById('image-modal-prev');
+  const imageModalNext = document.getElementById('image-modal-next');
+  const zoomInBtn = document.getElementById('zoom-in-btn');
+  const zoomOutBtn = document.getElementById('zoom-out-btn');
+  const zoomLevelSpan = document.getElementById('zoom-level');
+
+  // ==================== ESTADO DA APLICAÇÃO (continuação) ====================
+  let rootFolderId = null;
+  let analysisQueue = [];
+  let currentAnalysisIndex = -1;
+  const processingLock = new Set();
+  let saveTimeout = null;
+  const undoSnapshots = new Map();
+  let modalImageIndex = 0;
+  let accordionState = {};
+  let isFirstLoadComplete = false;
+  let loadingInterval = null;
+  let phraseInterval = null;
+
+  // Constantes de configuração
+  const MAX_CONCURRENT_AI_JOBS = 2;
+  const PREFETCH_AI_WINDOW = 2;
+  const GLOSSARIO_OCORRENCIAS = {
+    "Preventivas": [ "Pichação/Colagem/Sujeira/Ferrugem Leve", "Pintura Desgastada/Desbotada", "Cobertura Suja", "Caixa de Aterramento Sem Tampa", "Calçada Suja", "Fiação Exposta", "Itinerário Danificado/Ausente", "Pictogramas Danificados" ],
+    "Corretivas": [ "Estrutura Abalroada/Danificada", "Banco Quebrado", "Vidro Quebrado/Trincado", "Vidro Riscado (com necessidade de resina)", "Vidro Traseiro Ausente (Pendente)", "Ferrugem Severa/Infiltração", "Problema Elétrico", "Componente Ausente/Suprimido", "Calçada/Piso Podotátil Danificado", "Abrigo Suprimido/Agendado para Supressão", "Local em Obras" ]
+  };
+
+  // ==================== SISTEMA DE NOTIFICAÇÃO (TOAST) ====================
+  // ... (código do toast permanece o mesmo)
+  function showNotification(message, type = 'info', action = null, timeout = 7000) {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+    const existingToasts = Array.from(container.children);
+    const firstPositions = new Map();
+    existingToasts.forEach(t => firstPositions.set(t, t.getBoundingClientRect()));
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type}`;
+    const contentWrapper = document.createElement('div');
+    contentWrapper.className = 'toast-content';
+    const messageP = document.createElement('p');
+    messageP.textContent = message;
+    contentWrapper.appendChild(messageP);
+    if (action && action.label && action.callback) {
+        const actionsWrapper = document.createElement('div');
+        actionsWrapper.className = 'toast-actions';
+        const button = document.createElement('button');
+        button.textContent = action.label;
+        button.onclick = (e) => { e.stopPropagation(); action.callback(); dismissToast(toast); };
+        actionsWrapper.appendChild(button);
+        contentWrapper.appendChild(actionsWrapper);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close-btn';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.onclick = (e) => { e.stopPropagation(); dismissToast(toast); };
+    toast.appendChild(contentWrapper);
+    toast.appendChild(closeBtn);
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    existingToasts.forEach(t => {
+        const first = firstPositions.get(t);
+        const last = t.getBoundingClientRect();
+        const deltaY = first.top - last.top;
+        if (deltaY !== 0) {
+            t.style.transition = 'none';
+            t.style.transform = `translateY(${deltaY}px)`;
+            t.offsetHeight;
+            t.style.transition = 'transform 0.4s var(--transition-easing)';
+            t.style.transform = '';
+        }
+    });
+    const dismissToast = (element) => {
+        if (element.isDismissing) return;
+        element.isDismissing = true;
+        clearTimeout(element.dismissTimeout);
+        const container = element.parentElement;
+        const firstPositions = new Map();
+        Array.from(container.children).forEach(child => {
+            if (child !== element && !child.isDismissing) {
+                firstPositions.set(child, child.getBoundingClientRect());
+            }
+        });
+        let hasCleanedUp = false;
+        const onAnimationEnd = () => {
+            if (hasCleanedUp) return;
+            hasCleanedUp = true;
+            if (element.parentElement) element.remove();
+            firstPositions.forEach((firstRect, child) => {
+                const lastRect = child.getBoundingClientRect();
+                const deltaY = firstRect.top - lastRect.top;
+                if (deltaY !== 0) {
+                    child.style.transition = 'none';
+                    child.style.transform = `translateY(${deltaY}px)`;
+                    child.offsetHeight;
+                    child.style.transition = 'transform 0.4s var(--transition-easing)';
+                    child.style.transform = '';
+                }
+            });
+        };
+        element.addEventListener('transitionend', onAnimationEnd, { once: true });
+        setTimeout(onAnimationEnd, 500);
+        element.style.transform = '';
+        element.style.transition = '';
+        requestAnimationFrame(() => element.classList.add('dismissing'));
+    };
+    toast.dismissTimeout = null;
+    const startTimeout = () => {
+        if (timeout > 0) {
+            toast.dismissTimeout = setTimeout(() => dismissToast(toast), timeout);
+        }
+    };
+    startTimeout();
+    toast.addEventListener('mouseenter', () => clearTimeout(toast.dismissTimeout));
+    toast.addEventListener('mouseleave', startTimeout);
+    let isDragging = false, startX = 0, currentX = 0;
+    const onPointerDown = (e) => {
+        if (e.button !== 0 || e.target.tagName === 'BUTTON') return;
+        isDragging = true;
+        startX = e.clientX;
+        toast.style.transition = 'none';
+        toast.setPointerCapture(e.pointerId);
+        clearTimeout(toast.dismissTimeout);
+    };
+    const onPointerMove = (e) => {
+        if (!isDragging) return;
+        currentX = e.clientX - startX;
+        if (currentX > 0) toast.style.transform = `translateX(${currentX}px)`;
+    };
+    const onPointerUp = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        toast.style.transition = 'transform 0.4s var(--transition-easing), opacity 0.4s var(--transition-easing)';
+        toast.releasePointerCapture(e.pointerId);
+        if (currentX > toast.offsetWidth * 0.4) {
+            dismissToast(toast);
+        } else {
+            toast.style.transform = 'translateX(0)';
+            startTimeout();
+        }
+    };
+    toast.addEventListener('pointerdown', onPointerDown);
+    toast.addEventListener('pointermove', onPointerMove);
+    toast.addEventListener('pointerup', onPointerUp);
+  }
+
+  // ==================== FUNÇÕES DE CONTROLE DA UI ====================
+  function showSpinner(text = 'Processando...') {
+    spinnerText.textContent = text;
+    spinner.style.display = 'flex';
+  }
+  function hideSpinner() {
+    spinner.style.display = 'none';
+  }
+  function switchScreen(screenToShow) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    screenToShow.classList.add('active');
+  }
+  function autosizeTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = (textarea.scrollHeight) + 'px';
+  }
+  function saveAccordionState() {
+    accordionState = {};
+    const groupTitles = document.querySelectorAll('#analysis-details .card-group-title');
+    groupTitles.forEach(title => {
+      const key = title.textContent.trim();
+      accordionState[key] = title.classList.contains('collapsed');
+    });
+  }
+  function typeWriterEffect(element, text, speed = 15, onComplete) {
+    let i = 0;
+    element.value = '';
+    element.focus();
+    element.classList.add('typing');
+    function type() {
+      if (i < text.length) {
+        element.value += text.charAt(i);
+        i++;
+        autosizeTextarea(element);
+        setTimeout(type, speed);
+      } else {
+        element.classList.remove('typing');
+        if (onComplete) onComplete();
+      }
+    }
+    type();
+  }
+
+  // ==================== LÓGICA DO DROPDOWN PERSONALIZADO ====================
+  function setupCustomSelect() {
+    // Popula o dropdown
+    customSelectOptionsList.innerHTML = '';
+    for (const category in GLOSSARIO_OCORRENCIAS) {
+      const categoryDiv = document.createElement('div');
+      categoryDiv.className = 'option-category';
+      categoryDiv.textContent = category;
+      customSelectOptionsList.appendChild(categoryDiv);
+
+      GLOSSARIO_OCORRENCIAS[category].forEach(item => {
+        const optionDiv = document.createElement('div');
+        optionDiv.className = 'option';
+        optionDiv.dataset.value = item;
+        optionDiv.textContent = item;
+        customSelectOptionsList.appendChild(optionDiv);
+      });
+    }
+
+    // Lógica para abrir/fechar
+    customSelectValue.addEventListener('click', (e) => {
+      e.stopPropagation();
+      customSelect.classList.toggle('open');
+    });
+
+    // Lógica para selecionar um item
+    customSelectOptionsList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('option')) {
+        const selectedValue = e.target.dataset.value;
+        customSelectText.textContent = selectedValue;
+        customSelectText.classList.remove('placeholder');
+        customSelect.dataset.value = selectedValue; // Armazena o valor no elemento pai
+        
+        // Remove a classe 'selected' de todos e adiciona na clicada
+        customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+        e.target.classList.add('selected');
+
+        customSelect.classList.remove('open');
+      }
+    });
+
+    // Lógica de busca
+    customSelectSearchInput.addEventListener('input', () => {
+      const searchTerm = customSelectSearchInput.value.toLowerCase();
+      customSelectOptionsList.querySelectorAll('.option').forEach(option => {
+        const itemText = option.textContent.toLowerCase();
+        option.classList.toggle('hidden', !itemText.includes(searchTerm));
+      });
+    });
+
+    // Fechar ao clicar fora
+    document.addEventListener('click', (e) => {
+      if (!customSelect.contains(e.target)) {
+        customSelect.classList.remove('open');
+      }
+    });
+  }
+  
+  // Chamar a configuração inicial
+  setupCustomSelect();
+
+
+  // ==================== LÓGICA DA LANDING PAGE (NOVO FLUXO) ====================
+
+  function setDriveWidgetState(newStatus, errorMessage) {
+    state.ui.driveWidget.status = newStatus;
+    clearInterval(loadingInterval);
+
+    mapFolderBtn.classList.remove('is-loading', 'is-error', 'is-success');
+
+    if (newStatus !== 'SUCCESS') {
+      mapFolderBtn.style.setProperty('--progress-width', '0%');
+    }
+
+    switch (newStatus) {
+      case 'IDLE':
+        mapFolderBtn.disabled = false;
+        mapFolderBtn.style.removeProperty('--progress-width');
+        break;
+
+      case 'LOADING':
+        mapFolderBtn.classList.add('is-loading');
+        mapFolderBtn.disabled = true;
+        
+        let progress = 0;
+        mapFolderBtn.style.setProperty('--progress-width', '0%');
+
+        loadingInterval = setInterval(() => {
+          if (progress < 90) { 
+            const increment = progress < 50 ? Math.random() * 10 + 5 : Math.random() * 2 + 1;
+            progress = Math.min(progress + increment, 90);
+            mapFolderBtn.style.setProperty('--progress-width', `${progress}%`);
+          }
+        }, 350);
+        break;
+
+      case 'SUCCESS':
+        mapFolderBtn.style.setProperty('--progress-width', '100%');
+
+        setTimeout(() => {
+          mapFolderBtn.classList.remove('is-loading');
+          mapFolderBtn.classList.add('is-success');
+          
+          setTimeout(() => {
+            mapFolderBtn.disabled = false;
+            state.ui.driveWidget.isCollapsed = true;
+            updateWidgetUI();
+          }, 600);
+        }, 450);
+        break;
+
+      case 'ERROR':
+        mapFolderBtn.classList.remove('is-loading');
+        mapFolderBtn.classList.add('is-error');
+        mapFolderBtn.disabled = true;
+        showNotification(errorMessage || 'Ocorreu um erro.', 'warn');
+
+        setTimeout(() => {
+          mapFolderBtn.disabled = false;
+          mapFolderBtn.classList.remove('is-error');
+          mapFolderBtn.style.setProperty('--progress-width', '0%');
+          setDriveWidgetState('IDLE');
+        }, 3000);
+        break;
+    }
+  }
+
+  function updateWidgetUI() {
+    const isCollapsed = state.ui.driveWidget.isCollapsed;
+    inputSection.classList.toggle('collapsed', isCollapsed);
+    widgetHeader.classList.toggle('collapsed', isCollapsed);
+
+    if (state.ui.driveWidget.status === 'SUCCESS') {
+      resultsSection.classList.add('visible');
+    } else {
+      resultsSection.classList.remove('visible');
+    }
+  }
+
+  mapFolderBtn.addEventListener('click', () => {
+    let folderIdInput = folderInput.value.trim();
+    if (!folderIdInput) {
+      showNotification('Por favor, insira um ID ou link de pasta.', 'warn');
+      return;
+    }
+    const match = folderIdInput.match(/folders\/([a-zA-Z0-9_-]+)/);
+    const finalFolderId = match ? match[1] : folderIdInput;
+    rootFolderId = finalFolderId;
+    
+    setDriveWidgetState('LOADING');
+
+    google.script.run
+      .withSuccessHandler(handleFolderMappingSuccess)
+      .withFailureHandler(handleFolderMappingError)
+      .getFolderListForMapping(finalFolderId);
+  });
+
+  function handleFolderMappingSuccess(result) {
+    clearInterval(loadingInterval);
+    if (result.error || !result.success) {
+      handleFolderMappingError({ message: result.message || 'Resposta inválida do servidor.' });
+      return;
+    }
+    
+    setDriveWidgetState('SUCCESS');
+    
+    folderList.innerHTML = '';
+    if (result.folders && result.folders.length > 0) {
+      result.folders.forEach(node => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <label class="custom-checkbox">
+            <input type="checkbox" data-id="${node.id}" data-name="${node.name}" data-type="${node.equipmentType}" data-status="${node.status}">
+            <span class="checkmark"></span>
+            <span class="label-text">${node.name}</span>
+          </label>`;
+        folderList.appendChild(li);
+      });
+    } else {
+      setDriveWidgetState('ERROR', 'Nenhuma subpasta encontrada na pasta fornecida.');
+      state.ui.driveWidget.isCollapsed = false;
+      updateWidgetUI();
+    }
+  }
+
+  function handleFolderMappingError(error) {
+    clearInterval(loadingInterval);
+    setDriveWidgetState('ERROR', error.message || 'Ocorreu um erro desconhecido.');
+  }
+
+  widgetHeader.addEventListener('click', () => {
+    if (state.ui.driveWidget.status !== 'LOADING') {
+      state.ui.driveWidget.isCollapsed = !state.ui.driveWidget.isCollapsed;
+      updateWidgetUI();
+    }
+  });
+
+  selectAllBtn.addEventListener('click', (e) => {
+      const checkboxes = folderList.querySelectorAll('input[type="checkbox"]');
+      const areAllChecked = Array.from(checkboxes).every(cb => cb.checked);
+      checkboxes.forEach(cb => cb.checked = !areAllChecked);
+      const icon = e.currentTarget.querySelector('.material-symbols-outlined');
+      const text = e.currentTarget.querySelector('span:not(.material-symbols-outlined)');
+      if (areAllChecked) {
+        icon.textContent = 'done_all';
+        text.textContent = 'Selecionar Todas';
+      } else {
+        icon.textContent = 'remove_done';
+        text.textContent = 'Desmarcar Todas';
+      }
+  });
+
+  startAnalysisBtn.addEventListener('click', () => {
+    const selectedCheckboxes = folderList.querySelectorAll('input[type="checkbox"]:checked');
+    if (selectedCheckboxes.length === 0) {
+      showNotification('Selecione pelo menos uma pasta para analisar.', 'warn');
+      return;
+    }
+
+    startAnalysisBtn.disabled = true;
+    startAnalysisBtn.classList.add('is-loading');
+
+    // Dicionário de frases expandido
+    const phrases = [
+      'Analisando com IA...', 
+      'Consultando oráculos de silício...',
+      'Alinhando matrizes de dados...',
+      'Verificando a integridade dos pixels...',
+      'Usando todo o poder da IA...', 
+      'Calibrando os algoritmos...',
+      'Aguarde, a mágica está acontecendo...',
+      'Análise profunda...'
+    ];
+    let phraseIndex = 0;
+    const phraseElement = startAnalysisBtn.querySelector('.loading-phrases');
+    
+    // Limpa o intervalo anterior, se existir
+    if (phraseInterval) clearInterval(phraseInterval);
+
+    // Lógica de animação de texto aprimorada
+    const cyclePhrases = () => {
+      // 1. Esmaecer para sair
+      phraseElement.style.opacity = '0';
+      phraseElement.style.transform = 'translateY(8px)';
+
+      setTimeout(() => {
+        // 2. Trocar o texto
+        phraseIndex = (phraseIndex + 1) % phrases.length;
+        phraseElement.textContent = phrases[phraseIndex];
+        
+        // 3. Esmaecer para entrar
+        phraseElement.style.opacity = '1';
+        phraseElement.style.transform = 'translateY(0)';
+      }, 450); // Deve corresponder à duração da transição do CSS
+    };
+    
+    // Inicia o ciclo
+    phraseElement.textContent = phrases[0];
+    phraseInterval = setInterval(cyclePhrases, 2500); // Intervalo entre as frases
+
+    analysisQueue = Array.from(selectedCheckboxes).map(cb => ({
+      id: cb.dataset.id,
+      name: cb.dataset.name,
+      status: cb.dataset.status,
+      equipmentType: cb.dataset.type,
+      analysisData: null,
+      imageData: null
+    }));
+    
+    google.script.run
+        .withSuccessHandler(response => {
+            if (response && !response.error && response.url) {
+                openSheetBtn.disabled = false;
+                openSheetBtn.dataset.url = response.url;
+            } else {
+                console.error("Não foi possível obter a URL da planilha.");
+                showNotification("Não foi possível encontrar a planilha de relatório.", "warn");
+            }
+            startProcessingQueue();
+        })
+        .withFailureHandler(err => {
+            console.error("Erro ao buscar URL da planilha:", err);
+            showNotification("Erro ao tentar localizar a planilha de relatório.", "warn");
+            startAnalysisBtn.disabled = false;
+            startAnalysisBtn.classList.remove('is-loading');
+            clearInterval(phraseInterval);
+        })
+        .getReportSheetUrl(rootFolderId);
+  });
+
+  // ==================== LÓGICA DA FILA E ANÁLISE ====================
+  function startProcessingQueue() {
+    renderSidebar();
+    prefetchExistingData();
+    fetchAndDisplayFolder(0, true);
+  }
+
+  function prefetchExistingData() {
+    analysisQueue.forEach((item, index) => {
+      if ((item.status === 'analyzed' || item.status === 'reviewed') && !item.analysisData) {
+        google.script.run
+            .withSuccessHandler((result) => onDataFetched(result, index, false))
+            .withFailureHandler((error) => onDataFetchFailed(error, index))
+            .getFolderDataBundle(item.id);
+      }
+    });
+  }
+
+  function enqueueNextAiAnalysisJobs(startIndex) {
+    const start = startIndex + 1;
+    const end = Math.min(analysisQueue.length, start + PREFETCH_AI_WINDOW);
+    for (let i = start; i < end; i++) {
+        if (processingLock.size >= MAX_CONCURRENT_AI_JOBS) break;
+        const item = analysisQueue[i];
+        if (item.status === 'pending' && !processingLock.has(item.id)) {
+            console.log(`Enfileirando análise de IA para: ${item.name}`);
+            processFolderInBackground(i, true);
+        }
+    }
+  }
+
+  function processFolderInBackground(index, isAutoEnqueued = false) {
+      const item = analysisQueue[index];
+      if (!item || processingLock.has(item.id) || item.status !== 'pending') return;
+      if (processingLock.size >= MAX_CONCURRENT_AI_JOBS) {
+          if (!isAutoEnqueued) showNotification('Aguarde a conclusão das análises em andamento para iniciar uma nova.', 'warn');
+          return;
+      }
+      if (!isAutoEnqueued) {
+        showNotification(`Análise de "${item.name}" iniciada em segundo plano.`, 'info');
+      } else {
+        showNotification(`Análise de "${item.name}" iniciada pela IA...`, 'info');
+      }
+      item.status = 'loading';
+      renderSidebar();
+      processingLock.add(item.id);
+      google.script.run
+          .withSuccessHandler((result) => onDataFetched(result, index, false))
+          .withFailureHandler((error) => onDataFetchFailed(error, index))
+          .getFolderDataBundle(item.id);
+  }
+
+  function fetchAndDisplayFolder(index, isInitialLoad = false) {
+    const itemToLoad = analysisQueue[index];
+    if (!itemToLoad) return;
+    if (processingLock.has(itemToLoad.id) && itemToLoad.status === 'loading') {
+      showNotification(`Aguarde, os dados de "${itemToLoad.name}" já estão sendo carregados.`, 'info');
+      return;
+    }
+    clearTimeout(saveTimeout);
+    if (!isInitialLoad && currentAnalysisIndex > -1 && currentAnalysisIndex < analysisQueue.length) {
+      const prevItem = analysisQueue[currentAnalysisIndex];
+      if (prevItem && prevItem.analysisData && prevItem.status !== 'reviewed') {
+        saveCurrentAnalysis(false, currentAnalysisIndex);
+      }
+    }
+    if (currentAnalysisIndex !== index) accordionState = {};
+    currentAnalysisIndex = index;
+    renderSidebar();
+    currentFolderName.textContent = itemToLoad.name;
+    if (itemToLoad.analysisData && itemToLoad.imageData) {
+        renderUI(index, false);
+        enqueueNextAiAnalysisJobs(currentAnalysisIndex);
+        return;
+    }
+    
+    if (!isInitialLoad) {
+      imageStack.innerHTML = '<div class="mini-spinner"></div>';
+      analysisDetails.innerHTML = '';
+    }
+
+    itemToLoad.status = 'loading';
+    renderSidebar();
+    processingLock.add(itemToLoad.id);
+    google.script.run
+      .withSuccessHandler((result) => onDataFetched(result, index, true, isInitialLoad))
+      .withFailureHandler((error) => onDataFetchFailed(error, index))
+      .getFolderDataBundle(itemToLoad.id);
+  }
+
+  function onDataFetched(result, index, shouldRender, isInitialLoad = false) {
+    const item = analysisQueue[index];
+    if (item) processingLock.delete(item.id);
+    try {
+        const bundle = JSON.parse(result);
+        if (bundle.analysisData.error) throw new Error(bundle.analysisData.message);
+        item.analysisData = bundle.analysisData;
+        item.imageData = bundle.imageData;
+        const source = item.analysisData.source;
+        if (source === 'final') {
+            item.status = 'reviewed';
+        } else if (source === 'draft' || source === 'new') {
+            item.status = 'analyzed';
+        }
+        if (item.analysisData.source === 'new') {
+            const dataToSave = { ...item.analysisData };
+            delete dataToSave.source;
+            google.script.run
+                .withSuccessHandler(res => console.log("Rascunho inicial salvo:", item.name, res.message))
+                .withFailureHandler(err => console.error("Erro ao salvar rascunho inicial:", err))
+                .finalizeAndSave(item.id, rootFolderId, JSON.stringify(dataToSave), false);
+        }
+
+        if (isInitialLoad && index === 0) {
+            clearInterval(phraseInterval);
+            const transitionOverlay = document.getElementById('magic-transition-overlay');
+            transitionOverlay.classList.add('visible');
+            
+            setTimeout(() => {
+              switchScreen(mainScreen);
+              renderUI(index, true);
+              
+              transitionOverlay.classList.add('hiding');
+              transitionOverlay.addEventListener('animationend', () => {
+                transitionOverlay.classList.remove('visible', 'hiding');
+                startAnalysisBtn.disabled = false;
+                startAnalysisBtn.classList.remove('is-loading');
+              }, { once: true });
+
+            }, 1000);
+        } else if (shouldRender) {
+            renderUI(index, true);
+        }
+
+        if (item.analysisData.source === 'new') {
+            showNotification(`Análise de "${item.name}" foi concluída pela IA.`, 'success');
+        }
+        renderSidebar();
+        if (shouldRender || index === currentAnalysisIndex) {
+            enqueueNextAiAnalysisJobs(index);
+        }
+    } catch (e) {
+        onDataFetchFailed({ message: e.message || 'Erro ao interpretar resposta do servidor.'}, index);
+    }
+  }
+
+  function onDataFetchFailed(error, index) {
+      const item = analysisQueue[index];
+      if (item) {
+        processingLock.delete(item.id);
+        item.status = 'error';
+        item.analysisData = { error: true, message: error.message || 'Falha na análise.' };
+        if (index === currentAnalysisIndex) {
+            renderUI(index);
+        }
+      }
+      renderSidebar();
+  }
+
+  function renderUI(index, isFirstRender = false) {
+      renderAnalysisData(index, isFirstRender);
+  }
+
+  function findNextReadyFolder() {
+      if (currentAnalysisIndex >= analysisQueue.length - 1) {
+          showNotification("Você chegou ao fim da fila de análise!", 'success');
+          return null;
+      }
+      for (let i = currentAnalysisIndex + 1; i < analysisQueue.length; i++) {
+          if (analysisQueue[i].status === 'analyzed' || analysisQueue[i].status === 'reviewed') {
+              return i;
+          }
+      }
+      showNotification('Aguarde o processamento do próximo endereço. Você será notificado.', 'warn');
+      return null;
+  }
+
+  nextFolderBtn.addEventListener('click', () => {
+      if (currentAnalysisIndex === -1) return;
+      saveCurrentAnalysis(true, currentAnalysisIndex);
+      analysisQueue[currentAnalysisIndex].status = 'reviewed';
+      renderSidebar();
+      const nextIndexToShow = findNextReadyFolder();
+      if (nextIndexToShow !== null) {
+          fetchAndDisplayFolder(nextIndexToShow);
+      }
+  });
+
+  function saveCurrentAnalysis(isFinal, indexToSave) {
+    const itemIndex = (indexToSave !== undefined) ? indexToSave : currentAnalysisIndex;
+    if (itemIndex < 0 || itemIndex >= analysisQueue.length) return;
+    const item = analysisQueue[itemIndex];
+    if (!item || !item.analysisData || item.analysisData.error) {
+      console.log("Salvamento cancelado: item inválido, sem dados ou com erro.", item);
+      return;
+    }
+    if (itemIndex === currentAnalysisIndex) {
+      updateDataObjectFromDOM();
+    }
+    const dataToSave = { ...item.analysisData };
+    delete dataToSave.source;
+    google.script.run
+        .withSuccessHandler(res => {
+            const saveType = isFinal ? "FINAL" : "RASCUNHO";
+            console.log(`Análise [${saveType}] para '${item.name}': ${res.message}`);
+            if (res.success && isFinal) {
+               showNotification(`Análise de '${item.name}' concluída e relatório atualizado!`, 'success');
+            } else if (!res.success) {
+               showNotification(`Falha no salvamento: ${res.message}`, 'warn');
+            }
+        })
+        .withFailureHandler(err => {
+            console.error(`Erro ao salvar análise para '${item.name}':`, err);
+            showNotification(`Falha ao salvar a análise de '${item.name}'.`, 'warn');
+        })
+        .finalizeAndSave(item.id, rootFolderId, JSON.stringify(dataToSave), isFinal);
+  }
+
+  // ==================== RENDERIZAÇÃO E MANIPULAÇÃO DO DOM ====================
+  function renderSidebar() {
+    const lastScrollTop = queueList.scrollTop;
+    queueList.innerHTML = '';
+    analysisQueue.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.dataset.index = index;
+        const dot = document.createElement('span');
+        dot.className = `status-dot status-${item.status}`;
+        const spanName = document.createElement('span');
+        spanName.className = 'item-name';
+        spanName.textContent = item.name;
+        li.appendChild(dot);
+        li.appendChild(spanName);
+        li.addEventListener('click', () => {
+            if (index === currentAnalysisIndex) return;
+            const clickedItem = analysisQueue[index];
+            if (clickedItem.status === 'loading') {
+                showNotification(`Aguarde, a análise de "${clickedItem.name}" está em andamento.`, 'info');
+                return;
+            }
+            if (clickedItem.status === 'pending' && !clickedItem.analysisData) {
+                showNotification(`Esta pasta ainda não foi pré-processada. Tentando iniciar agora...`, 'info');
+                processFolderInBackground(index);
+                return;
+            }
+            if (clickedItem.status === 'error' || (clickedItem.analysisData && clickedItem.analysisData.error)) {
+                const errorMessage = (clickedItem.analysisData && clickedItem.analysisData.message) ? clickedItem.analysisData.message : 'Não foi possível carregar os dados desta pasta.';
+                showNotification(`Erro ao carregar: ${errorMessage}`, 'warn');
+                return;
+            }
+            if (!clickedItem.imageData || clickedItem.imageData.length === 0) {
+                showNotification(`Não é possível analisar: Nenhuma imagem foi encontrada na pasta "${clickedItem.name}".`, 'warn');
+                clickedItem.status = 'error';
+                clickedItem.analysisData = { error: true, message: `Nenhuma imagem encontrada na pasta.` };
+                renderSidebar();
+                return;
+            }
+            fetchAndDisplayFolder(index);
+        });
+        if (index === currentAnalysisIndex) {
+            li.classList.add('active');
+        }
+        queueList.appendChild(li);
+    });
+    queueList.scrollTop = lastScrollTop;
+  }
+
+  const renderCardGroup = (title, diagnostico, typeClass, category) => {
+      const cards = diagnostico[category] || [];
+      let isCollapsed = accordionState[title] === true;
+      let groupHtml = `<div class="card-group">
+                            <h3 class="card-group-title ${isCollapsed ? 'collapsed' : ''}">${title}</h3>
+                            <div class="card-group-content ${isCollapsed ? 'collapsed' : ''}">`;
+      if (cards.length === 0) {
+          const houveAntes = diagnostico.ocorrencias_identificadas_antes?.length > 0;
+          if (category === 'servicos_executados' && houveAntes) {
+              groupHtml += `<div class="empty-state-message">Nenhum serviço foi executado para as ocorrências identificadas.</div>`;
+          } else if (category === 'pendencias_remanescentes_depois' && houveAntes) {
+              groupHtml += `<div class="empty-state-message">Todos os serviços foram executados com sucesso. Nenhuma pendência remanescente.</div>`;
+          } else if (category === 'ocorrencias_identificadas_antes' && !houveAntes) {
+              groupHtml += `<div class="empty-state-message">Nenhuma ocorrência foi identificada pela IA.</div>`;
+          }
+      } else {
+          cards.forEach((occ) => {
+              const itemName = occ.item || occ.item_resolvido;
+              let actionButtonsHtml = '';
+              if (category === 'ocorrencias_identificadas_antes') {
+                  actionButtonsHtml = `<button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
+              } else if (category === 'servicos_executados') {
+                  actionButtonsHtml = `<button class="action-btn secondary" data-action="move-to-pending"><span class="material-symbols-outlined">report_problem</span> Serviço Não Executado</button>
+                                       <button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
+              } else if (category === 'pendencias_remanescentes_depois') {
+                  actionButtonsHtml = `<button class="action-btn secondary" data-action="move-to-executed"><span class="material-symbols-outlined">task_alt</span> Ocorrência Corrigida</button>
+                                       <button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
+              }
+              groupHtml += `<div class="card ${typeClass}" data-item-name="${itemName}" data-id="${occ._uniqueId}">
+                              <div class="card-actions">${actionButtonsHtml}</div>
+                              <div class="card-header">${itemName}${occ.tipo ? `<span class="type">${occ.tipo}</span>` : ''}</div>
+                              <p>${occ.descricao || occ.acao_realizada || ''}</p>
+                          </div>`;
+          });
+      }
+      groupHtml += `</div></div>`;
+      return groupHtml;
+  };
+
+  function addUniqueIdsToOccurrences(diagnostico) {
+    if (!diagnostico) return;
+    let idCounter = 0;
+    ['ocorrencias_identificadas_antes', 'servicos_executados', 'pendencias_remanescentes_depois'].forEach(category => {
+        if (diagnostico[category]) {
+            diagnostico[category].forEach(occ => {
+                if (!occ._uniqueId) {
+                    occ._uniqueId = `occ-${Date.now()}-${idCounter++}`;
+                }
+            });
+        }
+    });
+  }
+
+  function renderAnalysisData(index, isFirstRender = false) {
+      if (!isFirstRender) saveAccordionState();
+      const item = analysisQueue[index];
+      imageStack.innerHTML = '<div class="mini-spinner"></div>';
+      analysisDetails.innerHTML = '';
+      imageStack.className = 'image-stack';
+      collapseGridBtn.classList.add('hidden');
+      if (item.imageData) renderImages(item.imageData);
+      const data = item.analysisData;
+      if (!data || data.error) {
+          analysisDetails.innerHTML = `<div class="card card-pendency"><div class="card-header">Erro na Análise</div><p>${data ? data.message : 'Dados não disponíveis.'}</p></div>`;
+          hideSpinner();
+          return;
+      }
+
+      if(data.diagnostico_manutencao) {
+        addUniqueIdsToOccurrences(data.diagnostico_manutencao);
+      }
+
+      nextFolderBtn.querySelector('.btn-text').textContent = (data.source === 'final' || item.status === 'reviewed') ? 'Atualizar e Avançar' : 'Concluir e Avançar';
+      let html = '';
+      if(data.analise_temporal || data.quantidade_equipamentos_identificados) {
+          html += `<div class="card card-info">
+                      <div class="card-header"><h3>Informações Sobre a Atividade</h3></div>
+                      <body><strong>Equipamentos Identificados </strong><p> ${data.quantidade_equipamentos_identificados || 'N/A'}</p></body>
+                      <body><strong>Duração do Serviço </strong><p> ${data.analise_temporal?.duracao_servico_minutos || 'N/A'} minutos</p></body>
+                      <body><strong>Consistência </strong><p> ${data.analise_temporal?.consistencia_temporal || 'N/A'}</p></body>
+                  </div>`;
+      }
+      const { diagnostico_manutencao, conclusao_auditoria } = data;
+      if (diagnostico_manutencao) {
+          html += renderCardGroup('Ocorrências (Antes)', diagnostico_manutencao, 'card-before', 'ocorrencias_identificadas_antes');
+          html += renderCardGroup('Serviços Executados', diagnostico_manutencao, 'card-executed', 'servicos_executados');
+          html += renderCardGroup('Pendências Remanescentes', diagnostico_manutencao, 'card-pendency', 'pendencias_remanescentes_depois');
+      }
+      html += `<div class="card card-add"><p><span class="material-symbols-outlined">add_circle</span> Adicionar Ocorrência</p></div>`;
+      if(conclusao_auditoria !== undefined) {
+          html += `<div id="conclusion-card" class="card">
+                      <div class="conclusion-header">
+                          <h3 class="card-group-title">Conclusão da Auditoria</h3>
+                          <button id="gemini-conclusion-btn" title="Gerar conclusão com IA">
+                              <img src="https://upload.wikimedia.org/wikipedia/commons/8/8f/Google-gemini-icon.svg" alt="Gemini Icon"/>
+                              Sugerir
+                          </button>
+                      </div>
+                      <div class="textarea-wrapper">
+                          <textarea placeholder="Escreva uma resenha sobre a atividade....">${conclusao_auditoria}</textarea>
+                          <div class="gemini-magic-overlay"></div>
+                      </div>
+                  </div>`;
+      }
+      analysisDetails.innerHTML = html;
+      const conclusionTextarea = document.querySelector('#conclusion-card textarea');
+      autosizeTextarea(conclusionTextarea);
+      hideSpinner();
+  }
+
+  function renderImages(images) {
+      imageStack.innerHTML = '';
+      if (!images || images.length === 0) {
+          imageStack.innerHTML = '<p>Nenhuma imagem encontrada.</p>';
+          return;
+      }
+      images.forEach((img, i) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'image-wrapper';
+        wrapper.onclick = (e) => {
+            if (imageStack.classList.contains('grid-view')) {
+                e.stopPropagation();
+                openImageModal(i);
+            }
+        };
+        const imgEl = document.createElement('img');
+        imgEl.src = img.data;
+        imgEl.alt = img.name;
+        wrapper.appendChild(imgEl);
+        imageStack.appendChild(wrapper);
+      });
+  }
+
+  function updateDataObjectFromDOM() {
+    const item = analysisQueue[currentAnalysisIndex];
+    if (!item || !item.analysisData || !item.analysisData.error) return;
+    const conclusionTextarea = document.querySelector('#conclusion-card textarea');
+    if (conclusionTextarea) {
+        item.analysisData.conclusao_auditoria = conclusionTextarea.value;
+    }
+  }
+
+  let zoom = 1, isPanning = false, startX, startY, panX = 0, panY = 0;
+  function openImageModal(index) {
+      modalImageIndex = index;
+      showModalImage(modalImageIndex);
+      imageModal.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', handleKeyboardNav);
+  }
+  function closeModal() {
+      imageModal.style.display = 'none';
+      document.body.style.overflow = 'auto';
+      document.removeEventListener('keydown', handleKeyboardNav);
+  }
+  function showModalImage(index) {
+      const images = analysisQueue[currentAnalysisIndex]?.imageData;
+      if (!images || !images[index]) return;
+      imageModalImg.src = images[index].data;
+      resetZoomAndPan();
+  }
+  function navigateModal(direction) {
+      const totalImages = analysisQueue[currentAnalysisIndex]?.imageData?.length || 0;
+      if (totalImages === 0) return;
+      modalImageIndex = (modalImageIndex + direction + totalImages) % totalImages;
+      showModalImage(modalImageIndex);
+  }
+  function handleKeyboardNav(e) {
+      if (e.key === 'ArrowRight') navigateModal(1);
+      if (e.key === 'ArrowLeft') navigateModal(-1);
+      if (e.key === 'Escape') closeModal();
+  }
+  function updateZoom(newZoom) {
+      zoom = Math.max(0.5, Math.min(newZoom, 5));
+      imageModalImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+      zoomLevelSpan.textContent = `${Math.round(zoom * 100)}%`;
+  }
+  function resetZoomAndPan() {
+      zoom = 1; panX = 0; panY = 0;
+      updateZoom(1);
+  }
+  imageModalClose.onclick = closeModal;
+  imageModalPrev.onclick = (e) => { e.stopPropagation(); navigateModal(-1); };
+  imageModalNext.onclick = (e) => { e.stopPropagation(); navigateModal(1); };
+  zoomInBtn.onclick = () => updateZoom(zoom + 0.2);
+  zoomOutBtn.onclick = () => updateZoom(zoom - 0.2);
+  imageModalImg.addEventListener('wheel', (e) => { e.preventDefault(); updateZoom(zoom + (e.deltaY < 0 ? 0.1 : -0.1)); });
+  imageModalImg.addEventListener('mousedown', (e) => {
+      if (zoom > 1) { e.preventDefault(); isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; imageModalImg.classList.add('panning'); }
+  });
+  window.addEventListener('mouseup', () => { isPanning = false; imageModalImg.classList.remove('panning'); });
+  window.addEventListener('mousemove', (e) => {
+      if (isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; imageModalImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
+  });
+
+  function handleGeminiConclusion(buttonEl) {
+    const item = analysisQueue[currentAnalysisIndex];
+    if (!item || !item.analysisData) {
+        showNotification('Dados da análise não encontrados.', 'warn');
+        return;
+    }
+    const conclusionCard = document.getElementById('conclusion-card');
+    const textarea = conclusionCard.querySelector('textarea');
+    const magicOverlay = conclusionCard.querySelector('.gemini-magic-overlay');
+    buttonEl.disabled = true;
+    magicOverlay.classList.add('active');
+    const diag = item.analysisData.diagnostico_manutencao || {};
+    const temporal = item.analysisData.analise_temporal || {};
+    const rascunhoParaIA = {
+        diagnostico_manutencao: {
+          houve_ocorrencia_previa: diag.houve_ocorrencia_previa,
+          ocorrencias_identificadas_antes: diag.ocorrencias_identificadas_antes,
+          servicos_executados: diag.servicos_executados,
+          pendencias_remanescentes_depois: diag.pendencias_remanescentes_depois
+        },
+        analise_temporal: {
+          duracao_servico_minutos: temporal.duracao_servico_minutos,
+          consistencia_temporal: temporal.consistencia_temporal
+        }
+    };
+    const onFinish = () => { buttonEl.disabled = false; magicOverlay.classList.remove('active'); };
+    google.script.run
+        .withSuccessHandler(novaConclusao => {
+            typeWriterEffect(textarea, novaConclusao, 4, () => {
+                item.analysisData.conclusao_auditoria = novaConclusao;
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => saveCurrentAnalysis(false, currentAnalysisIndex), 1000);
+                onFinish();
+            });
+        })
+        .withFailureHandler(error => { showNotification(`Erro da IA: ${error.message}`, 'warn'); onFinish(); })
+        .gerarConclusaoComGemma(JSON.stringify(rascunhoParaIA));
+  }
+
+  function undoAction(actionId) {
+    clearTimeout(saveTimeout);
+    const undoData = undoSnapshots.get(actionId);
+
+    if (undoData) {
+        clearTimeout(undoData.cleanupTimeoutId);
+        const item = analysisQueue[currentAnalysisIndex];
+        item.analysisData.diagnostico_manutencao = undoData.snapshot;
+        undoSnapshots.delete(actionId);
+
+        const isGridView = imageStack.classList.contains('grid-view');
+        renderAnalysisData(currentAnalysisIndex, false);
+        if (isGridView) {
+            imageStack.classList.add('grid-view');
+            collapseGridBtn.classList.remove('hidden');
+        }
+        saveCurrentAnalysis(false, currentAnalysisIndex);
+        showNotification("Ação desfeita.", 'info');
+    } else {
+      console.warn(`Não foi possível encontrar os dados para desfazer a ação: ${actionId}. O tempo para desfazer pode ter expirado.`);
+    }
+  }
+
+  function handleOccurrenceAction(action, itemName) {
+    const item = analysisQueue[currentAnalysisIndex];
+    if (!item || !item.analysisData || !item.analysisData.diagnostico_manutencao) return;
+
+    const snapshot = JSON.parse(JSON.stringify(item.analysisData.diagnostico_manutencao));
+    const actionId = `undo-${Date.now()}-${Math.random()}`;
+    const cleanupTimeoutId = setTimeout(() => { undoSnapshots.delete(actionId); }, 8000);
+    undoSnapshots.set(actionId, { snapshot, cleanupTimeoutId });
+
+    const diag = item.analysisData.diagnostico_manutencao;
+    const isGridView = imageStack.classList.contains('grid-view');
+    let notificationMessage = '';
+    if (!diag.ocorrencias_identificadas_antes) diag.ocorrencias_identificadas_antes = [];
+    if (!diag.servicos_executados) diag.servicos_executados = [];
+    if (!diag.pendencias_remanescentes_depois) diag.pendencias_remanescentes_depois = [];
+    if (!diag.ocorrencias_excluidas) diag.ocorrencias_excluidas = []; // Garantir que o array de excluídas exista
+
+    switch (action) {
+        case 'delete': {
+            let found = false;
+            let occurrenceToMove;
+            
+            const indexAntes = diag.ocorrencias_identificadas_antes.findIndex(o => o.item === itemName);
+            if (indexAntes > -1) {
+                occurrenceToMove = diag.ocorrencias_identificadas_antes.splice(indexAntes, 1)[0];
+                diag.ocorrencias_excluidas.push(occurrenceToMove);
+                found = true;
+            }
+
+            const indexExecutados = diag.servicos_executados.findIndex(o => o.item_resolvido === itemName);
+            if (indexExecutados > -1) {
+                occurrenceToMove = diag.servicos_executados.splice(indexExecutados, 1)[0];
+                diag.ocorrencias_excluidas.push({
+                    item: occurrenceToMove.item_resolvido,
+                    tipo: 'N/A',
+                    descricao: occurrenceToMove.acao_realizada
+                });
+                found = true;
+            }
+
+            const indexPendentes = diag.pendencias_remanescentes_depois.findIndex(o => o.item === itemName);
+            if (indexPendentes > -1) {
+                occurrenceToMove = diag.pendencias_remanescentes_depois.splice(indexPendentes, 1)[0];
+                diag.ocorrencias_excluidas.push(occurrenceToMove);
+                found = true;
+            }
+
+            if (found) {
+              notificationMessage = `Ocorrência '${itemName}' marcada como inexistente.`;
+            }
+            break;
+        }
+        case 'move-to-pending': {
+            const serviceIndex = diag.servicos_executados.findIndex(o => o.item_resolvido === itemName);
+            if (serviceIndex > -1) {
+                const originalOccurrence = snapshot.ocorrencias_identificadas_antes.find(o => o.item === itemName);
+                diag.servicos_executados.splice(serviceIndex, 1);
+                diag.pendencias_remanescentes_depois.push({
+                    item: itemName,
+                    tipo: originalOccurrence ? originalOccurrence.tipo : 'Preventiva',
+                    status: "Pendente",
+                    descricao: "O usuário definiu a ocorrência como ainda pendente."
+                });
+                notificationMessage = `'${itemName}' movida para pendências.`;
+            }
+            break;
+        }
+        case 'move-to-executed': {
+            const pendencyIndex = diag.pendencias_remanescentes_depois.findIndex(o => o.item === itemName);
+            if (pendencyIndex > -1) {
+                diag.pendencias_remanescentes_depois.splice(pendencyIndex, 1);
+                diag.servicos_executados.push({
+                    item_resolvido: itemName,
+                    acao_realizada: "O usuário definiu a ocorrência como executada."
+                });
+                notificationMessage = `'${itemName}' marcada como corrigida.`;
+            }
+            break;
+        }
+    }
+    renderAnalysisData(currentAnalysisIndex, false);
+    if (isGridView) {
+        imageStack.classList.add('grid-view');
+        collapseGridBtn.classList.remove('hidden');
+    }
+    if(notificationMessage) {
+      showNotification(notificationMessage, 'warn', { label: "Desfazer", callback: () => undoAction(actionId) });
+    }
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+        saveCurrentAnalysis(false, currentAnalysisIndex);
+    }, 7100);
+  }
+
+  imageModal.addEventListener('click', function(event) {
+    const nonClosingElements = ['#image-modal-img', '.modal-nav', '#image-modal-close', '#image-modal-toolbar'];
+    if (!nonClosingElements.some(selector => event.target.closest(selector))) closeModal();
+  });
+  imageStackContainer.addEventListener('click', (e) => {
+      if (!imageStack.classList.contains('grid-view')) {
+          imageStack.classList.add('grid-view');
+          collapseGridBtn.classList.remove('hidden');
+      }
+  });
+  collapseGridBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      imageStack.classList.remove('grid-view');
+      collapseGridBtn.classList.add('hidden');
+  });
+  analysisDetails.addEventListener('click', (e) => {
+      const geminiBtn = e.target.closest('#gemini-conclusion-btn');
+      if (geminiBtn) { e.stopPropagation(); handleGeminiConclusion(geminiBtn); return; }
+      const actionButton = e.target.closest('.action-btn[data-action]');
+      if (actionButton) {
+          e.stopPropagation();
+          const card = actionButton.closest('.card[data-item-name]');
+          if (card) handleOccurrenceAction(actionButton.dataset.action, card.dataset.itemName);
+          return;
+      }
+      const groupTitle = e.target.closest('.card-group-title');
+      if (groupTitle) {
+          groupTitle.classList.toggle('collapsed');
+          const content = groupTitle.nextElementSibling;
+          if (content?.classList.contains('card-group-content')) content.classList.toggle('collapsed');
+          return;
+      }
+      if (e.target.closest('.card-add')) { openAddOccurrenceModal(); return; }
+  });
+  analysisDetails.addEventListener('input', (e) => {
+    if (e.target.tagName === 'TEXTAREA') {
+        autosizeTextarea(e.target);
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => saveCurrentAnalysis(false, currentAnalysisIndex), 1500);
+    }
+  });
+
+  function openAddOccurrenceModal() {
+    addOccurrenceModalContainer.querySelectorAll('.category-toggle-btn').forEach((btn, index) => {
+      btn.classList.toggle('selected', index === 0);
+    });
+    
+    // Reset do dropdown personalizado
+    customSelect.classList.remove('open');
+    customSelectText.textContent = 'Selecione um item...';
+    customSelectText.classList.add('placeholder');
+    customSelect.dataset.value = '';
+    customSelectSearchInput.value = '';
+    // Mostra todas as opções ao abrir
+    customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('hidden'));
+
+    occurrenceDescriptionTextarea.value = '';
+    autosizeTextarea(occurrenceDescriptionTextarea);
+    addOccurrenceModal.style.display = 'block';
+  }
+  closeAddOccurrenceBtn.onclick = () => addOccurrenceModal.style.display = "none";
+  window.onclick = (event) => {
+    if (event.target == addOccurrenceModal) addOccurrenceModal.style.display = "none";
+  };
+
+  saveOccurrenceBtn.addEventListener('click', () => {
+      const category = addOccurrenceModalContainer.querySelector('.category-toggle-btn.selected')?.dataset.value || 'pendencias_remanescentes_depois';
+      const itemName = customSelect.dataset.value; // Pega o valor do dropdown personalizado
+      
+      if (!itemName) {
+        showNotification('Por favor, selecione um item da ocorrência.', 'warn');
+        return;
+      }
+
+      const description = occurrenceDescriptionTextarea.value.trim() || 'Ocorrência adicionada pelo usuário.';
+      const data = analysisQueue[currentAnalysisIndex].analysisData;
+      if (data?.diagnostico_manutencao) {
+          const diag = data.diagnostico_manutencao;
+          diag.servicos_executados = diag.servicos_executados?.filter(o => o.item_resolvido !== itemName) || [];
+          diag.pendencias_remanescentes_depois = diag.pendencias_remanescentes_depois?.filter(o => o.item !== itemName) || [];
+          const tipoOcorrencia = GLOSSARIO_OCORRENCIAS.Corretivas.includes(itemName) ? 'Corretiva' : 'Preventiva';
+          if (category === 'servicos_executados') {
+              if (!diag.servicos_executados) diag.servicos_executados = [];
+              diag.servicos_executados.push({ item_resolvido: itemName, acao_realizada: description });
+          } else {
+              if (!diag.pendencias_remanescentes_depois) diag.pendencias_remanescentes_depois = [];
+              diag.pendencias_remanescentes_depois.push({ item: itemName, tipo: tipoOcorrencia, status: 'Pendente', descricao: description });
+          }
+          if (!diag.ocorrencias_identificadas_antes?.some(o => o.item === itemName)) {
+              if (!diag.ocorrencias_identificadas_antes) diag.ocorrencias_identificadas_antes = [];
+              diag.ocorrencias_identificadas_antes.push({ item: itemName, tipo: tipoOcorrencia, descricao: "Ocorrência adicionada manualmente pelo usuário." });
+          }
+          const isGridView = imageStack.classList.contains('grid-view');
+          renderAnalysisData(currentAnalysisIndex, false);
+          if (isGridView) {
+              imageStack.classList.add('grid-view');
+              collapseGridBtn.classList.remove('hidden');
+          }
+          saveCurrentAnalysis(false, currentAnalysisIndex);
+      }
+      addOccurrenceModal.style.display = "none";
+  });
+
+  addOccurrenceModalContainer.addEventListener('click', (e) => {
+    const clickedBtn = e.target.closest('.category-toggle-btn');
+    if (!clickedBtn || clickedBtn.classList.contains('selected')) return;
+    clickedBtn.parentElement.querySelectorAll('.category-toggle-btn').forEach(btn => btn.classList.remove('selected'));
+    clickedBtn.classList.add('selected');
+  });
+  occurrenceDescriptionTextarea.addEventListener('input', () => autosizeTextarea(occurrenceDescriptionTextarea));
+  
+  openSheetBtn.addEventListener('click', () => {
+    const url = openSheetBtn.dataset.url;
+    if (url) {
+        window.open(url, '_blank');
+    } else {
+        showNotification("A URL da planilha ainda não foi carregada.", "warn");
+    }
+  });
+
+  openInDriveBtn.addEventListener('click', () => {
+      if (currentAnalysisIndex === -1) return;
+      const id = analysisQueue[currentAnalysisIndex].id;
+      window.open('https://drive.google.com/drive/folders/' + id, '_blank');
+  });
+
+  const toggleSidebar = (forceState) => {
+      const body = document.body;
+      // Determina se a sidebar deve abrir ou fechar. Se forceState for fornecido, usa ele.
+      const shouldBeOpen = forceState !== undefined ? forceState : !body.classList.contains('sidebar-open');
+      
+      body.classList.toggle('sidebar-open', shouldBeOpen);
+
+      if (shouldBeOpen) {
+          // Adiciona o listener para fechar ao clicar fora, apenas quando a sidebar está aberta.
+          // Usamos 'true' para capturar o evento na fase de captura, garantindo que ele seja executado antes de outros cliques.
+          document.addEventListener('click', handleOutsideClick, true);
+      } else {
+          // Remove o listener quando a sidebar é fechada para não interferir com outros cliques.
+          document.removeEventListener('click', handleOutsideClick, true);
+      }
+  };
+
+  const handleOutsideClick = (event) => {
+      // Se o clique foi no botão do hambúrguer, a função do botão já vai lidar com isso.
+      if (hamburgerBtn.contains(event.target)) {
+          return;
+      }
+      // Se a sidebar estiver aberta e o clique for fora dela, fecha a sidebar.
+      if (document.body.classList.contains('sidebar-open') && !sidebar.contains(event.target)) {
+          toggleSidebar(false);
+      }
+  };
+
+  hamburgerBtn.addEventListener('click', (event) => {
+      // Impede que o clique no botão se propague para o listener do 'document',
+      // o que fecharia a sidebar imediatamente após abri-la.
+      event.stopPropagation();
+      toggleSidebar();
+  });
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('<?= ScriptApp.getService().getUrl() ?>?page=sw')
+      .then(registration => console.log('Service Worker registrado com sucesso:', registration))
+      .catch(error => console.log('Falha ao registrar o Service Worker:', error));
+  });
+}
+</script>
+<script>
+  function triggerAddressCacheUpdate() {
+    google.script.run
+      .withSuccessHandler(() => console.log("Cache de endereços atualizado com sucesso."))
+      .withFailureHandler((err) => console.error("Falha ao atualizar cache de endereços:", err))
+      .atualizarCacheDeEnderecos();
+  }
+  function triggerModelCacheUpdate() {
+    google.script.run
+      .withSuccessHandler(() => console.log("Cache de modelos atualizado com sucesso."))
+      .withFailureHandler((err) => console.error("Falha ao atualizar cache de modelos:", err))
+      .atualizarCacheDeModelos();
+  }
+</script>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>saIA</title>
+  <link rel="manifest" href="<?= ScriptApp.getService().getUrl() ?>?page=manifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400..800;1,400..800&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/kgdS5ddC/ELETROSAIA192.png">
+  <!-- Ícones do Google Material Symbols -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <?!= include('CSS'); ?>
+</head>
+<body>
+
+  <!-- Nova Landing Page -->
+  <div id="landing-page" class="screen active">
+    <header class="landing-header">
+        <div class="logo">
+            <img src="https://i.ibb.co/Qv55H7v5/Group-82.png" alt="Group-82" width="32" height="32">
+            <span style="color: #ff4f00;">saIA</span>
+        </div>
+        <div class="system-title">
+            Sistema de Análise de Mobiliários Urbanos por IA
+        </div>
+    </header>
+    <main class="landing-main">
+        <h1 class="page-title">Qual tipo de dados você deseja analisar?</h1>
+        <div class="drive-widget">
+            <div class="widget-header accordion-header">
+                <span class="widget-icon material-symbols-outlined">add_circle</span>
+                <h2 class="widget-title-text">Pastas do Google Drive</h2>
+            </div>
+            <div id="input-section" class="content-box accordion-content">
+                <label class="instruction-label">Cole abaixo o link da sua pasta com as subpastas que deseja analisar</label>
+                <input type="text" class="text-input" id="folder-link-input" placeholder="Link da sua pasta aqui...">
+                <button id="map-folder-btn" class="action-button">
+                    <span class="btn-text-original">Mapear Pasta</span>
+                    <div class="btn-text-loading" data-text="Analisando pastas...">
+                        Analisando pastas...
+                    </div>
+                </button>
+            </div>
+            <div id="results-section" class="results-section">
+                <div class="folder-list-header">
+                    <h3 class="list-label">Quais pastas você deseja analisar?</h3>
+                    <button id="select-all-btn" class="select-all-button">
+                        <span class="material-symbols-outlined">done_all</span>
+                        <span>Selecionar Todos</span>
+                    </button>
+                </div>
+                <div id="folder-list" class="folder-list">
+                    <!-- A lista de pastas será populada pelo JavaScript -->
+                </div>
+                <button id="start-analysis-btn" class="submit-button">
+                  <span class="btn-text-original">
+                    <span class="material-symbols-outlined">play_circle</span>
+                    <span>Iniciar Análise</span>
+                  </span>
+                  <div class="loading-content">
+                    <span class="loading-phrases"></span>
+                  </div>
+                </button>
+            </div>
+        </div>
+    </main>
+  </div>
+
+  <!-- Tela de Análise Principal -->
+  <div id="main-screen" class="screen">
+    <header>
+      <button id="hamburger-btn" class="icon-btn"><span class="material-symbols-outlined">menu</span></button>
+      <h2 id="current-folder-name"></h2>
+      <div class="header-actions">
+        <!-- ALTERAÇÃO: Texto dos botões envolvido por spans -->
+        <button id="open-in-drive-btn">
+          <span class="material-symbols-outlined">open_in_new</span>
+          <span class="btn-text">Abrir no Drive</span>
+        </button>
+        <button id="next-folder-btn" class="primary">
+          <span class="material-symbols-outlined">arrow_forward</span>
+          <span class="btn-text">Concluir e Avançar</span>
+        </button>
+      </div>
+    </header>
+
+    <nav id="sidebar">
+      <h3 style="padding-bottom: 10px;padding-left: 1.4rem;">Fila de Análise</h3>
+      <ul id="queue-list"></ul>
+      <button id="open-sheet-btn" class="primary" style="margin-left: 0;" disabled>
+        <span class="material-symbols-outlined">border_inner</span>
+        Abrir Planilha
+      </button>
+    </nav>
+
+    <div id="analysis-content">
+      <div id="image-stack-container">
+          <div class="image-header">
+            <h3>Imagens da Pasta</h3>
+            <button id="collapse-grid-btn" class="hidden"><span class="material-symbols-outlined">unfold_less</span> Recolher</button>
+          </div>
+          <div id="image-stack"></div>
+      </div>
+      <div class="content-separator"></div>
+      <div id="analysis-details-container">
+        <div id="analysis-details"></div>
+      </div>
+    </div>
+    
+    <div id="main-overlay"></div>
+  </div>
+
+  <!-- Popup Modal para Seleção de Pastas -->
+  <div id="folder-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn">×</span>
+      <h3>Selecione as pastas para análise</h3>
+      <p>Marque as pastas que contêm as imagens de "antes e depois".</p>
+      <div id="folder-tree">
+        <!-- Exemplo de Checkbox Personalizado -->
+        <label class="custom-checkbox">
+          <input type="checkbox" checked="checked">
+          <span class="checkmark"></span>
+          <span class="label-text">Pasta Exemplo 1</span>
+        </label>
+        <label class="custom-checkbox">
+          <input type="checkbox">
+          <span class="checkmark"></span>
+          <span class="label-text">Pasta Exemplo 2</span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="select-all-folders-btn"><span class="material-symbols-outlined">select_all</span> Selecionar Todas</button>
+        <button id="start-inspection-btn" class="primary"><span class="material-symbols-outlined">play_circle</span> Iniciar Vistoria</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Popup Modal para Adicionar Ocorrência -->
+  <div id="add-occurrence-modal" class="modal">
+    <div class="modal-content">
+      <span id="close-add-occurrence-modal" class="close-btn">×</span>
+      <h3>Adicionar Nova Ocorrência</h3>
+
+      <div class="form-group">
+        <label>Categoria</label>
+        <div class="category-toggle-container">
+          <button class="category-toggle-btn selected" data-value="pendencias_remanescentes_depois">
+            <span class="material-symbols-outlined">warning</span> Ocorrência Pendente
+          </button>
+          <button class="category-toggle-btn" data-value="servicos_executados">
+            <span class="material-symbols-outlined">check_circle</span> Serviço Executado
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="occurrence-list">Item da Ocorrência</label>
+        <div id="custom-occurrence-select" class="custom-select-container">
+          <div class="custom-select-selected-value">
+            <span class="text">Selecione um item...</span>
+            <span class="material-symbols-outlined arrow">expand_more</span>
+          </div>
+          <div class="custom-select-options">
+            <div class="custom-select-search">
+              <input type="text" placeholder="Pesquisar item...">
+            </div>
+            <div class="options-list">
+              <!-- As opções serão populadas pelo JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="occurrence-description">Descrição</label>
+        <textarea id="occurrence-description" rows="3" placeholder="Detalhes da ocorrência..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button id="save-occurrence-btn" class="primary"><span class="material-symbols-outlined">save</span> Salvar Ocorrência</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Visualização de Imagem (Lightbox) -->
+  <div id="image-modal" class="image-viewer-modal">
+    <span id="image-modal-close">×</span>
+    <button id="image-modal-prev" class="modal-nav"><span class="material-symbols-outlined">arrow_back_ios</span></button>
+    <button id="image-modal-next" class="modal-nav"><span class="material-symbols-outlined">arrow_forward_ios</span></button>
+    <div id="image-modal-content">
+      <img id="image-modal-img" src="">
+    </div>
+    <div id="image-modal-toolbar">
+       <button id="zoom-out-btn" title="Diminuir Zoom"><span class="material-symbols-outlined">remove</span></button>
+       <span id="zoom-level">100%</span>
+       <button id="zoom-in-btn" title="Aumentar Zoom"><span class="material-symbols-outlined">add</span></button>
+    </div>
+  </div>
+
+  <!-- Spinner de Carregamento Global -->
+  <div id="spinner-overlay" class="spinner-overlay">
+      <div class="spinner"></div>
+      <p id="spinner-text">Carregando...</p>
+  </div>
+
+  <!-- Contêiner para as notificações -->
+  <div id="notification-container"></div>
+
+  <!-- Overlay de Transição Mágica -->
+  <div id="magic-transition-overlay"></div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html> 

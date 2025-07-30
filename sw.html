@@ -1,0 +1,27 @@
+const CACHE_NAME = 'saia-cache-v1';
+// A URL base do seu app. O Apps Script a inserirá aqui.
+const BASE_URL = '<?= ScriptApp.getService().getUrl() ?>';
+const URLS_TO_CACHE = [
+  BASE_URL,
+  // Se você tiver outras imagens ou fontes que queira no cache, adicione aqui.
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Cache aberto');
+        return cache.addAll(URLS_TO_CACHE);
+      })
+  );
+});
+
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        // Se encontrar no cache, retorna. Senão, busca na rede.
+        return response || fetch(event.request);
+      })
+  );
+});
