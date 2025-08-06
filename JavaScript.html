@@ -258,6 +258,20 @@ document.addEventListener('DOMContentLoaded', function() {
     type();
   }
 
+  function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.add('modal-visible');
+    }
+  }
+
+  function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.remove('modal-visible');
+    }
+  }
+
   // ==================== LÓGICA DO DROPDOWN PERSONALIZADO ====================
   function setupCustomSelect() {
     // Popula o dropdown
@@ -587,9 +601,13 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
       }
       if (!isAutoEnqueued) {
-        showNotification(`Análise de "${item.name}" iniciada em segundo plano.`, 'info');
+        setTimeout(() => {
+          showNotification(`Análise de "${item.name}" iniciada em segundo plano.`, 'info');
+        }, 500);
       } else {
-        showNotification(`Análise de "${item.name}" iniciada pela IA...`, 'info');
+        setTimeout(() => {
+          showNotification(`Análise de "${item.name}" iniciada pela IA...`, 'info');
+        }, 500);
       }
       item.status = 'loading';
       renderSidebar();
@@ -683,7 +701,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (item.analysisData.source === 'new') {
+          setTimeout(() => {
             showNotification(`Análise de "${item.name}" foi concluída pela IA.`, 'success');
+          }, 500)
         }
         renderSidebar();
         if (shouldRender || index === currentAnalysisIndex) {
@@ -754,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const saveType = isFinal ? "FINAL" : "RASCUNHO";
             console.log(`Análise [${saveType}] para '${item.name}': ${res.message}`);
             if (res.success && isFinal) {
-               showNotification(`Análise de '${item.name}' concluída e relatório atualizado!`, 'success');
+               // showNotification(`Análise de '${item.name}' concluída e relatório atualizado!`, 'success');
             } else if (!res.success) {
                showNotification(`Falha no salvamento: ${res.message}`, 'warn');
             }
@@ -874,7 +894,19 @@ document.addEventListener('DOMContentLoaded', function() {
       analysisDetails.innerHTML = '';
       imageStack.className = 'image-stack';
       collapseGridBtn.classList.add('hidden');
-      if (item.imageData) renderImages(item.imageData);
+
+      if (item.imageData) {
+        const imageLoadPromise = renderImages(item.imageData);
+
+        imageLoadPromise.then(() => {
+          if (imageStack.classList.contains('grid-view')) {
+            applyMasonryLayout();
+          }
+        });
+      } else {
+        renderImages(null);
+      }
+
       const data = item.analysisData;
       if (!data || data.error) {
           analysisDetails.innerHTML = `<div class="card card-pendency"><div class="card-header">Erro na Análise</div><p>${data ? data.message : 'Dados não disponíveis.'}</p></div>`;
@@ -924,12 +956,64 @@ document.addEventListener('DOMContentLoaded', function() {
       hideSpinner();
   }
 
+  function applyMasonryLayout() {
+    const imageStack = document.getElementById('image-stack');
+    if (!imageStack.classList.contains('grid-view')) return;
+
+    const imageWrappers = imageStack.querySelectorAll('.image-wrapper');
+    if (imageWrappers.length === 0) return;
+
+    // Adicionando verificação de responsividade
+    if (window.innerWidth <= 992) {
+        // Em telas menores, removemos os estilos inline para que o CSS controle o layout
+        imageStack.style.height = '';
+        imageWrappers.forEach(wrapper => {
+            wrapper.style.position = '';
+            wrapper.style.left = '';
+            wrapper.style.top = '';
+            wrapper.style.width = '';
+        });
+        return; // Interrompe a execução do masonry
+    }
+
+    const numColumns = 3;
+    const gap = 16; 
+
+    const columnHeights = Array(numColumns).fill(0);
+    
+    const columnWidth = (imageStack.clientWidth - (gap * (numColumns - 1))) / numColumns;
+
+    imageWrappers.forEach(wrapper => {
+      wrapper.style.width = `${columnWidth}px`;
+
+      const minHeight = Math.min(...columnHeights);
+      const columnIndex = columnHeights.indexOf(minHeight);
+
+      const top = minHeight;
+      const left = columnIndex * (columnWidth + gap);
+
+      wrapper.style.left = `${left}px`;
+      wrapper.style.top = `${top}px`;
+
+      columnHeights[columnIndex] += wrapper.offsetHeight + gap;
+    });
+
+    const totalHeight = Math.max(...columnHeights);
+    imageStack.style.height = `${totalHeight}px`;
+  }
+
   function renderImages(images) {
       imageStack.innerHTML = '';
       if (!images || images.length === 0) {
           imageStack.innerHTML = '<p>Nenhuma imagem encontrada.</p>';
-          return;
+          return Promise.resolve();
       }
+
+      // Ordena as imagens pelo nome para garantir a ordem cronológica
+      images.sort((a, b) => a.name.localeCompare(b.name));
+
+      const imageLoadPromises = [];
+
       images.forEach((img, i) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'image-wrapper';
@@ -940,11 +1024,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
         const imgEl = document.createElement('img');
-        imgEl.src = img.data;
-        imgEl.alt = img.name;
+
+        const loadPromise = new Promise(resolve => {
+            imgEl.onload = resolve;
+            imgEl.onerror = resolve;
+            imgEl.src = img.data;
+            imgEl.alt = img.name;
+        });
+        imageLoadPromises.push(loadPromise);
+
         wrapper.appendChild(imgEl);
         imageStack.appendChild(wrapper);
       });
+      
+      return Promise.all(imageLoadPromises); 
   }
 
   function updateDataObjectFromDOM() {
@@ -960,12 +1053,12 @@ document.addEventListener('DOMContentLoaded', function() {
   function openImageModal(index) {
       modalImageIndex = index;
       showModalImage(modalImageIndex);
-      imageModal.style.display = 'block';
+      showModal('image-modal');
       document.body.style.overflow = 'hidden';
       document.addEventListener('keydown', handleKeyboardNav);
   }
-  function closeModal() {
-      imageModal.style.display = 'none';
+  function closeImageModal() {
+      closeModal('image-modal');
       document.body.style.overflow = 'auto';
       document.removeEventListener('keydown', handleKeyboardNav);
   }
@@ -984,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function handleKeyboardNav(e) {
       if (e.key === 'ArrowRight') navigateModal(1);
       if (e.key === 'ArrowLeft') navigateModal(-1);
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape') closeImageModal();
   }
   function updateZoom(newZoom) {
       zoom = Math.max(0.5, Math.min(newZoom, 5));
@@ -995,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', function() {
       zoom = 1; panX = 0; panY = 0;
       updateZoom(1);
   }
-  imageModalClose.onclick = closeModal;
+  imageModalClose.onclick = closeImageModal;
   imageModalPrev.onclick = (e) => { e.stopPropagation(); navigateModal(-1); };
   imageModalNext.onclick = (e) => { e.stopPropagation(); navigateModal(1); };
   zoomInBtn.onclick = () => updateZoom(zoom + 0.2);
@@ -1167,18 +1260,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
   imageModal.addEventListener('click', function(event) {
     const nonClosingElements = ['#image-modal-img', '.modal-nav', '#image-modal-close', '#image-modal-toolbar'];
-    if (!nonClosingElements.some(selector => event.target.closest(selector))) closeModal();
+    if (!nonClosingElements.some(selector => event.target.closest(selector))) closeImageModal();
   });
   imageStackContainer.addEventListener('click', (e) => {
       if (!imageStack.classList.contains('grid-view')) {
           imageStack.classList.add('grid-view');
           collapseGridBtn.classList.remove('hidden');
+
+          requestAnimationFrame(() => {
+            applyMasonryLayout();
+          });
       }
   });
   collapseGridBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       imageStack.classList.remove('grid-view');
       collapseGridBtn.classList.add('hidden');
+      
+      // Remove os estilos inline para que a animação de volta funcione
+      const imageWrappers = imageStack.querySelectorAll('.image-wrapper');
+      imageStack.style.height = '';
+      imageWrappers.forEach(wrapper => {
+          wrapper.style.position = '';
+          wrapper.style.left = '';
+          wrapper.style.top = '';
+          wrapper.style.width = '';
+      });
   });
   analysisDetails.addEventListener('click', (e) => {
       const geminiBtn = e.target.closest('#gemini-conclusion-btn');
@@ -1212,27 +1319,25 @@ document.addEventListener('DOMContentLoaded', function() {
       btn.classList.toggle('selected', index === 0);
     });
     
-    // Reset do dropdown personalizado
     customSelect.classList.remove('open');
     customSelectText.textContent = 'Selecione um item...';
     customSelectText.classList.add('placeholder');
     customSelect.dataset.value = '';
     customSelectSearchInput.value = '';
-    // Mostra todas as opções ao abrir
     customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('hidden'));
 
     occurrenceDescriptionTextarea.value = '';
     autosizeTextarea(occurrenceDescriptionTextarea);
-    addOccurrenceModal.style.display = 'block';
+    showModal('add-occurrence-modal');
   }
-  closeAddOccurrenceBtn.onclick = () => addOccurrenceModal.style.display = "none";
+  closeAddOccurrenceBtn.onclick = () => closeModal('add-occurrence-modal');
   window.onclick = (event) => {
-    if (event.target == addOccurrenceModal) addOccurrenceModal.style.display = "none";
+    if (event.target == addOccurrenceModal) closeModal('add-occurrence-modal');
   };
 
   saveOccurrenceBtn.addEventListener('click', () => {
       const category = addOccurrenceModalContainer.querySelector('.category-toggle-btn.selected')?.dataset.value || 'pendencias_remanescentes_depois';
-      const itemName = customSelect.dataset.value; // Pega o valor do dropdown personalizado
+      const itemName = customSelect.dataset.value;
       
       if (!itemName) {
         showNotification('Por favor, selecione um item da ocorrência.', 'warn');
@@ -1265,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           saveCurrentAnalysis(false, currentAnalysisIndex);
       }
-      addOccurrenceModal.style.display = "none";
+      closeModal('add-occurrence-modal');
   });
 
   addOccurrenceModalContainer.addEventListener('click', (e) => {
@@ -1293,37 +1398,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const toggleSidebar = (forceState) => {
       const body = document.body;
-      // Determina se a sidebar deve abrir ou fechar. Se forceState for fornecido, usa ele.
       const shouldBeOpen = forceState !== undefined ? forceState : !body.classList.contains('sidebar-open');
       
       body.classList.toggle('sidebar-open', shouldBeOpen);
 
       if (shouldBeOpen) {
-          // Adiciona o listener para fechar ao clicar fora, apenas quando a sidebar está aberta.
-          // Usamos 'true' para capturar o evento na fase de captura, garantindo que ele seja executado antes de outros cliques.
           document.addEventListener('click', handleOutsideClick, true);
       } else {
-          // Remove o listener quando a sidebar é fechada para não interferir com outros cliques.
           document.removeEventListener('click', handleOutsideClick, true);
       }
   };
 
   const handleOutsideClick = (event) => {
-      // Se o clique foi no botão do hambúrguer, a função do botão já vai lidar com isso.
       if (hamburgerBtn.contains(event.target)) {
           return;
       }
-      // Se a sidebar estiver aberta e o clique for fora dela, fecha a sidebar.
       if (document.body.classList.contains('sidebar-open') && !sidebar.contains(event.target)) {
           toggleSidebar(false);
       }
   };
 
   hamburgerBtn.addEventListener('click', (event) => {
-      // Impede que o clique no botão se propague para o listener do 'document',
-      // o que fecharia a sidebar imediatamente após abri-la.
       event.stopPropagation();
       toggleSidebar();
+  });
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      applyMasonryLayout();
+    }, 250);
   });
 });
 

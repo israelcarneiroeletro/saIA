@@ -917,8 +917,8 @@ function generateNewIAAnalysis(folderToAnalyze) {
 
             const respostaIdBruta = chamarApiGemma(
                 identificationImageParts,
-                PROMPT_IDENTIFICACAO_TIPO,
-                'gemini-2.5-flash' // Mantém o uso do Gemma 3 12b para o fallback
+                getPromptsConfig()['PROMPT_IDENTIFICACAO_TIPO'].prompt,
+                'gemma-3-12b-it' // Mantém o uso do Gemma 3 12b para o fallback
             );
 
             const respostaIdJsonLimpo = extractFirstJsonFromString(respostaIdBruta);
