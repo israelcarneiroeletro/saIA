@@ -488,6 +488,127 @@ function gerarConclusaoComGemma(jsonRascunhoString) {
   }
 }
 
+/**
+ * Gera uma dica (hint) com Gemma a partir de um contexto JSON do frontend.
+ * O retorno é SEMPRE uma string JSON no esquema definido em 'GEMMA_HINTS_ASSISTANT'.
+ * Implementa limpeza defensiva e fallback para 'abstain' em caso de erro.
+ *
+ * @param {string} contextJSONString - JSON (string) com o contexto de UI/estado.
+ * @returns {string} JSON string seguindo o esquema obrigatório (decision, type, icon, message, ...)
+ */
+/*function gerarHintComGemma(contextJSONString) {
+  const apiKey = GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Chave de API ausente. Configure GEMINI_API_KEY nas Script Properties.');
+
+  const model = 'gemma-3-12b-it';
+  const prompts = getPromptsConfig();
+  const basePrompt = prompts['GEMMA_HINTS_ASSISTANT'] && prompts['GEMMA_HINTS_ASSISTANT'].prompt;
+  if (!basePrompt) throw new Error('Prompt GEMMA_HINTS_ASSISTANT não encontrado em prompts.html.');
+
+  // Injeta o contexto de forma segura
+  const prompt = basePrompt.replace('{context_json}', String(contextJSONString || '{}'));
+
+  try {
+    // Chamada ao Gemma (texto puro, sem imagens)
+    const respostaBruta = chamarApiGemma([], prompt, model);
+    if (!respostaBruta || typeof respostaBruta !== 'string') {
+      throw new Error('Resposta vazia ou inválida do modelo.');
+    }
+
+    // Limpeza defensiva: remover cercas de código e tentar extrair JSON
+    let texto = respostaBruta.replace(/```json/g, '').replace(/```/g, '').trim();
+    let jsonStr = '';
+    try {
+      // tentativa direta
+      JSON.parse(texto);
+      jsonStr = texto;
+    } catch (_) {
+      // extrair o maior bloco JSON
+      const first = texto.indexOf('{');
+      const last = texto.lastIndexOf('}');
+      if (first !== -1 && last !== -1 && last > first) {
+        jsonStr = texto.substring(first, last + 1);
+        JSON.parse(jsonStr); // valida
+      } else {
+        throw new Error('Não foi possível extrair JSON da resposta.');
+      }
+    }
+    return jsonStr;
+  } catch (e) {
+    Logger.log('Falha ao gerar hint com Gemma: ' + e.toString());
+    // Fallback consistente com o esquema requerido
+    const abstain = {
+      decision: 'abstain',
+      type: 'none',
+      icon: 'info',
+      message: '',
+      durationMs: 6000,
+      gapAfterMs: 6000,
+      priority: 0,
+      target: 'desktop_cursor',
+      reason: 'fallback_error:' + (e && e.message ? e.message : 'unknown')
+    };
+    return JSON.stringify(abstain);
+  }
+}
+  */
+
+/*
+ * Gera insights do Gemma com base em uma timeline de ações do usuário e contexto atual.
+ * @param {string} contextJSONString - JSON (string) com { ui, progress, stats, cards, device, idleMs, timeline }.
+ * @returns {string} JSON string no esquema obrigatório (decision, type='insight', icon, message, ...)
+ */
+/*
+function gerarInsightUsuarioComGemma(contextJSONString) {
+  const apiKey = GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Chave de API ausente. Configure GEMINI_API_KEY nas Script Properties.');
+
+  const model = 'gemma-3-12b-it';
+  let prompts = getPromptsConfig();
+  let basePrompt = prompts['GEMMA_USER_INSIGHTS'] && prompts['GEMMA_USER_INSIGHTS'].prompt;
+  if (!basePrompt) {
+    Logger.log('GEMMA_USER_INSIGHTS não encontrado no cache. Tentando recarregar prompts do arquivo.');
+    prompts = getPromptsConfig(true); // força recarregar
+    basePrompt = prompts['GEMMA_USER_INSIGHTS'] && prompts['GEMMA_USER_INSIGHTS'].prompt;
+  }
+  if (!basePrompt) throw new Error('Prompt GEMMA_USER_INSIGHTS não encontrado em prompts.html após recarregar.');
+
+  const prompt = basePrompt.replace('{context_json}', String(contextJSONString || '{}'));
+  try {
+    const respostaBruta = chamarApiGemma([], prompt, model);
+    if (!respostaBruta || typeof respostaBruta !== 'string') throw new Error('Resposta vazia ou inválida.');
+    let texto = respostaBruta.replace(/```json/g, '').replace(/```/g, '').trim();
+    let jsonStr = '';
+    try { JSON.parse(texto); jsonStr = texto; }
+    catch (_) {
+      const first = texto.indexOf('{');
+      const last = texto.lastIndexOf('}');
+      if (first !== -1 && last !== -1 && last > first) {
+        jsonStr = texto.substring(first, last + 1);
+        JSON.parse(jsonStr);
+      } else {
+        throw new Error('Não foi possível extrair JSON da resposta.');
+      }
+    }
+    return jsonStr;
+  } catch (e) {
+    Logger.log('Falha ao gerar insight com Gemma: ' + e.toString());
+    const abstain = {
+      decision: 'abstain',
+      type: 'insight',
+      icon: 'info',
+      message: '',
+      durationMs: 6000,
+      gapAfterMs: 6000,
+      priority: 0,
+      target: 'desktop_cursor',
+      reason: 'fallback_error:' + (e && e.message ? e.message : 'unknown')
+    };
+    return JSON.stringify(abstain);
+  }
+}
+*/
+
 function checkInitialStatuses(folderIds) {
   const statuses = {};
   folderIds.forEach(id => {
@@ -572,15 +693,26 @@ function getReportSheetUrl(rootFolderId) {
 }
 
 
-function getFolderListForMapping(rootFolderId) {
+function getFolderListForMappingWithProgress(rootFolderId) {
   try {
     const rootFolder = DriveApp.getFolderById(rootFolderId);
     const subfolders = rootFolder.getFolders();
     const folderList = [];
     const addressMap = getMapFromCache();
+    
+    // Count total folders first for progress calculation
+    let totalFolders = 0;
+    const tempSubfolders = rootFolder.getFolders();
+    while (tempSubfolders.hasNext()) {
+      tempSubfolders.next();
+      totalFolders++;
+    }
+    
+    let processedFolders = 0;
+    const subfolders2 = rootFolder.getFolders();
 
-    while (subfolders.hasNext()) {
-      const folder = subfolders.next();
+    while (subfolders2.hasNext()) {
+      const folder = subfolders2.next();
       const folderId = folder.getId();
       const folderName = folder.getName();
       const nameParts = folderName.match(/^(\d+)/);
@@ -602,12 +734,90 @@ function getFolderListForMapping(rootFolderId) {
         status: status,
         equipmentType: equipmentType
       });
+      
+      processedFolders++;
+      
+      // Simulate some processing time to make progress visible
+      // In a real scenario, this would be the actual processing time
+      Utilities.sleep(50); // Small delay to make progress visible
     }
     
     // Ordena a lista de pastas pelo nome formatado
     folderList.sort((a, b) => a.name.localeCompare(b.name));
 
-    return { success: true, folders: folderList };
+    return { 
+      success: true, 
+      folders: folderList,
+      progress: {
+        total: totalFolders,
+        processed: processedFolders,
+        percentage: Math.round((processedFolders / totalFolders) * 100)
+      }
+    };
+
+  } catch (e) {
+    Logger.log(`Erro ao listar pastas para mapeamento (ID: ${rootFolderId}): ${e.toString()}`);
+    return { error: true, message: `Falha ao mapear pastas: ${e.message}` };
+  }
+}
+
+function getFolderListForMapping(rootFolderId) {
+  try {
+    const rootFolder = DriveApp.getFolderById(rootFolderId);
+    const subfolders = rootFolder.getFolders();
+    const folderList = [];
+    const addressMap = getMapFromCache();
+    
+    // Count total folders first for progress calculation
+    let totalFolders = 0;
+    const tempSubfolders = rootFolder.getFolders();
+    while (tempSubfolders.hasNext()) {
+      tempSubfolders.next();
+      totalFolders++;
+    }
+    
+    let processedFolders = 0;
+    const subfolders2 = rootFolder.getFolders();
+
+    while (subfolders2.hasNext()) {
+      const folder = subfolders2.next();
+      const folderId = folder.getId();
+      const folderName = folder.getName();
+      const nameParts = folderName.match(/^(\d+)/);
+      const spTransCode = nameParts ? nameParts[1] : null;
+      
+      let status = 'pending';
+      if (getFileIfExists(folder, FINAL_ANALYSIS_FILENAME)) {
+        status = 'reviewed';
+      } else if (getFileIfExists(folder, DRAFT_ANALYSIS_FILENAME)) {
+        status = 'analyzed';
+      }
+
+      const model = spTransCode ? getModeloFromCache(spTransCode) : 'N/A';
+      const equipmentType = (String(model).toUpperCase() === 'TOTEM') ? 'Totem' : 'Abrigo';
+
+      folderList.push({
+        id: folderId,
+        name: formatFolderName(folderName, addressMap),
+        status: status,
+        equipmentType: equipmentType
+      });
+      
+      processedFolders++;
+    }
+    
+    // Ordena a lista de pastas pelo nome formatado
+    folderList.sort((a, b) => a.name.localeCompare(b.name));
+
+    return { 
+      success: true, 
+      folders: folderList,
+      progress: {
+        total: totalFolders,
+        processed: processedFolders,
+        percentage: Math.round((processedFolders / totalFolders) * 100)
+      }
+    };
 
   } catch (e) {
     Logger.log(`Erro ao listar pastas para mapeamento (ID: ${rootFolderId}): ${e.toString()}`);
@@ -798,14 +1008,16 @@ function criarPayloadDeExemplos(exemplosFolder) {
  * Lê e analisa o arquivo prompts.html, usando cache para otimização.
  * @returns {Object} O objeto JSON com todas as configurações de prompt.
  */
-function getPromptsConfig() {
+function getPromptsConfig(forceRefresh) {
   const cache = CacheService.getScriptCache();
-  const cachedPrompts = cache.get('prompts_config');
-
-  if (cachedPrompts) {
-    Logger.log("Configuração de prompts carregada do cache.");
-    return JSON.parse(cachedPrompts);
+  if (!forceRefresh) {
+    const cachedPrompts = cache.get('prompts_config');
+    if (cachedPrompts) {
+      Logger.log("Configuração de prompts carregada do cache.");
+      return JSON.parse(cachedPrompts);
+    }
   }
+
 
   try {
     // Método correto para ler arquivos de projeto no Apps Script

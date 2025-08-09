@@ -1,1367 +1,1921 @@
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-
-  // ==================== ESTADO DA APLICAÇÃO ====================
-  let state = {
-    ui: {
-      driveWidget: {
-        status: 'IDLE', // IDLE, LOADING, SUCCESS, ERROR
-        isCollapsed: false,
+  document.addEventListener('DOMContentLoaded', function() {
+  
+    // ==================== ESTADO DA APLICAÇÃO ====================
+    let state = {
+      ui: {
+        driveWidget: {
+          status: 'IDLE', // IDLE, LOADING, SUCCESS, ERROR
+          isCollapsed: false,
+        },
+        // ... (o resto do estado da UI, como a tela principal)
       },
-      // ... (o resto do estado da UI, como a tela principal)
-    },
-    data: {
-      rootFolderId: null,
-      analysisQueue: [],
-      currentAnalysisIndex: -1,
-      // ... (o resto dos dados)
-    },
-    // ... (outros estados globais)
-  };
+      data: {
+        rootFolderId: null,
+        analysisQueue: [],
+        currentAnalysisIndex: -1,
+        // ... (o resto dos dados)
+      },
+      // ... (outros estados globais)
+    };
+    
+    // ==================== ELEMENTOS DO DOM ====================
+    const landingPage = document.getElementById('landing-page');
+    const mainScreen = document.getElementById('main-screen');
+    const spinner = document.getElementById('spinner-overlay');
+    const spinnerText = document.getElementById('spinner-text');
+    
+    // --- Elementos do Widget do Drive ---
+    const driveWidget = document.querySelector('.drive-widget');
+    const widgetHeader = driveWidget.querySelector('.widget-header');
+    const inputSection = document.getElementById('input-section');
+    const folderInput = document.getElementById('folder-link-input');
+    const mapFolderBtn = document.getElementById('map-folder-btn');
+    const setupFeedback = document.getElementById('setup-feedback');
+    const resultsSection = document.getElementById('results-section');
+    const folderList = document.getElementById('folder-list');
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const startAnalysisBtn = document.getElementById('start-analysis-btn');
   
-  // ==================== ELEMENTOS DO DOM ====================
-  const landingPage = document.getElementById('landing-page');
-  const mainScreen = document.getElementById('main-screen');
-  const spinner = document.getElementById('spinner-overlay');
-  const spinnerText = document.getElementById('spinner-text');
+    // Elementos da Tela Principal de Análise
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const sidebar = document.getElementById('sidebar');
+    const queueList = document.getElementById('queue-list');
+    const currentFolderName = document.getElementById('current-folder-name');
+    const nextFolderBtn = document.getElementById('next-folder-btn');
+    const imageStackContainer = document.getElementById('image-stack-container');
+    const imageStack = document.getElementById('image-stack');
+    const collapseGridBtn = document.getElementById('collapse-grid-btn');
+    const analysisDetails = document.getElementById('analysis-details');
+    const openSheetBtn = document.getElementById('open-sheet-btn');
+    const openInDriveBtn = document.getElementById('open-in-drive-btn');
+    
+    // Progress Bar Elements
+    const progressContainer = document.getElementById('analysis-progress-container');
+    const progressText = progressContainer.querySelector('.progress-text');
+    const progressPercentage = progressContainer.querySelector('.progress-percentage');
+    const progressFill = progressContainer.querySelector('.progress-fill');
   
-  // --- Elementos do Widget do Drive ---
-  const driveWidget = document.querySelector('.drive-widget');
-  const widgetHeader = driveWidget.querySelector('.widget-header');
-  const inputSection = document.getElementById('input-section');
-  const folderInput = document.getElementById('folder-link-input');
-  const mapFolderBtn = document.getElementById('map-folder-btn');
-  const setupFeedback = document.getElementById('setup-feedback');
-  const resultsSection = document.getElementById('results-section');
-  const folderList = document.getElementById('folder-list');
-  const selectAllBtn = document.getElementById('select-all-btn');
-  const startAnalysisBtn = document.getElementById('start-analysis-btn');
-
-  // Elementos da Tela Principal de Análise
-  const hamburgerBtn = document.getElementById('hamburger-btn');
-  const sidebar = document.getElementById('sidebar');
-  const queueList = document.getElementById('queue-list');
-  const currentFolderName = document.getElementById('current-folder-name');
-  const nextFolderBtn = document.getElementById('next-folder-btn');
-  const imageStackContainer = document.getElementById('image-stack-container');
-  const imageStack = document.getElementById('image-stack');
-  const collapseGridBtn = document.getElementById('collapse-grid-btn');
-  const analysisDetails = document.getElementById('analysis-details');
-  const openSheetBtn = document.getElementById('open-sheet-btn');
-  const openInDriveBtn = document.getElementById('open-in-drive-btn');
-
-  // ... (resto dos elementos do DOM, modais etc. permanecem os mesmos)
-  // Elementos dos Modais
-  const addOccurrenceModal = document.getElementById('add-occurrence-modal');
-  const closeAddOccurrenceBtn = document.getElementById('close-add-occurrence-modal');
-  const saveOccurrenceBtn = document.getElementById('save-occurrence-btn');
-  const addOccurrenceModalContainer = document.getElementById('add-occurrence-modal');
-  const occurrenceDescriptionTextarea = document.getElementById('occurrence-description');
+    // ... (resto dos elementos do DOM, modais etc. permanecem os mesmos)
+    // Elementos dos Modais
+    const addOccurrenceModal = document.getElementById('add-occurrence-modal');
+    const closeAddOccurrenceBtn = document.getElementById('close-add-occurrence-modal');
+    const saveOccurrenceBtn = document.getElementById('save-occurrence-btn');
+    const addOccurrenceModalContainer = document.getElementById('add-occurrence-modal');
+    const occurrenceDescriptionTextarea = document.getElementById('occurrence-description');
+    
+    // --- Elementos do Novo Dropdown Personalizado ---
+    const customSelect = document.getElementById('custom-occurrence-select');
+    const customSelectValue = customSelect.querySelector('.custom-select-selected-value');
+    const customSelectText = customSelect.querySelector('.custom-select-selected-value .text');
+    const customSelectOptions = customSelect.querySelector('.custom-select-options');
+    const customSelectSearchInput = customSelect.querySelector('.custom-select-search input');
+    const customSelectOptionsList = customSelect.querySelector('.options-list');
   
-  // --- Elementos do Novo Dropdown Personalizado ---
-  const customSelect = document.getElementById('custom-occurrence-select');
-  const customSelectValue = customSelect.querySelector('.custom-select-selected-value');
-  const customSelectText = customSelect.querySelector('.custom-select-selected-value .text');
-  const customSelectOptions = customSelect.querySelector('.custom-select-options');
-  const customSelectSearchInput = customSelect.querySelector('.custom-select-search input');
-  const customSelectOptionsList = customSelect.querySelector('.options-list');
-
-  const imageModal = document.getElementById('image-modal');
-  const imageModalImg = document.getElementById('image-modal-img');
-  const imageModalClose = document.getElementById('image-modal-close');
-  const imageModalPrev = document.getElementById('image-modal-prev');
-  const imageModalNext = document.getElementById('image-modal-next');
-  const zoomInBtn = document.getElementById('zoom-in-btn');
-  const zoomOutBtn = document.getElementById('zoom-out-btn');
-  const zoomLevelSpan = document.getElementById('zoom-level');
-
-  // ==================== ESTADO DA APLICAÇÃO (continuação) ====================
-  let rootFolderId = null;
-  let analysisQueue = [];
-  let currentAnalysisIndex = -1;
-  const processingLock = new Set();
-  let saveTimeout = null;
-  const undoSnapshots = new Map();
-  let modalImageIndex = 0;
-  let accordionState = {};
-  let isFirstLoadComplete = false;
-  let loadingInterval = null;
-  let phraseInterval = null;
-
-  // Constantes de configuração
-  const MAX_CONCURRENT_AI_JOBS = 2;
-  const PREFETCH_AI_WINDOW = 2;
-  const GLOSSARIO_OCORRENCIAS = {
-    "Preventivas": [ "Pichação/Colagem/Sujeira/Ferrugem Leve", "Pintura Desgastada/Desbotada", "Cobertura Suja", "Caixa de Aterramento Sem Tampa", "Calçada Suja", "Fiação Exposta", "Itinerário Danificado/Ausente", "Pictogramas Danificados" ],
-    "Corretivas": [ "Estrutura Abalroada/Danificada", "Banco Quebrado", "Vidro Quebrado/Trincado", "Vidro Riscado (com necessidade de resina)", "Vidro Traseiro Ausente (Pendente)", "Ferrugem Severa/Infiltração", "Problema Elétrico", "Componente Ausente/Suprimido", "Calçada/Piso Podotátil Danificado", "Abrigo Suprimido/Agendado para Supressão", "Local em Obras" ]
-  };
-
-  // ==================== SISTEMA DE NOTIFICAÇÃO (TOAST) ====================
-  // ... (código do toast permanece o mesmo)
-  function showNotification(message, type = 'info', action = null, timeout = 7000) {
-    const container = document.getElementById('notification-container');
-    if (!container) return;
-    const existingToasts = Array.from(container.children);
-    const firstPositions = new Map();
-    existingToasts.forEach(t => firstPositions.set(t, t.getBoundingClientRect()));
-    const toast = document.createElement('div');
-    toast.className = `toast-notification ${type}`;
-    const contentWrapper = document.createElement('div');
-    contentWrapper.className = 'toast-content';
-    const messageP = document.createElement('p');
-    messageP.textContent = message;
-    contentWrapper.appendChild(messageP);
-    if (action && action.label && action.callback) {
-        const actionsWrapper = document.createElement('div');
-        actionsWrapper.className = 'toast-actions';
-        const button = document.createElement('button');
-        button.textContent = action.label;
-        button.onclick = (e) => { e.stopPropagation(); action.callback(); dismissToast(toast); };
-        actionsWrapper.appendChild(button);
-        contentWrapper.appendChild(actionsWrapper);
-    }
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'toast-close-btn';
-    closeBtn.innerHTML = '&times;';
-    closeBtn.onclick = (e) => { e.stopPropagation(); dismissToast(toast); };
-    toast.appendChild(contentWrapper);
-    toast.appendChild(closeBtn);
-    container.appendChild(toast);
-    requestAnimationFrame(() => toast.classList.add('show'));
-    existingToasts.forEach(t => {
-        const first = firstPositions.get(t);
-        const last = t.getBoundingClientRect();
-        const deltaY = first.top - last.top;
-        if (deltaY !== 0) {
-            t.style.transition = 'none';
-            t.style.transform = `translateY(${deltaY}px)`;
-            t.offsetHeight;
-            t.style.transition = 'transform 0.4s var(--transition-easing)';
-            t.style.transform = '';
-        }
-    });
-    const dismissToast = (element) => {
-        if (element.isDismissing) return;
-        element.isDismissing = true;
-        clearTimeout(element.dismissTimeout);
-        const container = element.parentElement;
-        const firstPositions = new Map();
-        Array.from(container.children).forEach(child => {
-            if (child !== element && !child.isDismissing) {
-                firstPositions.set(child, child.getBoundingClientRect());
-            }
-        });
-        let hasCleanedUp = false;
-        const onAnimationEnd = () => {
-            if (hasCleanedUp) return;
-            hasCleanedUp = true;
-            if (element.parentElement) element.remove();
-            firstPositions.forEach((firstRect, child) => {
-                const lastRect = child.getBoundingClientRect();
-                const deltaY = firstRect.top - lastRect.top;
-                if (deltaY !== 0) {
-                    child.style.transition = 'none';
-                    child.style.transform = `translateY(${deltaY}px)`;
-                    child.offsetHeight;
-                    child.style.transition = 'transform 0.4s var(--transition-easing)';
-                    child.style.transform = '';
-                }
-            });
-        };
-        element.addEventListener('transitionend', onAnimationEnd, { once: true });
-        setTimeout(onAnimationEnd, 500);
-        element.style.transform = '';
-        element.style.transition = '';
-        requestAnimationFrame(() => element.classList.add('dismissing'));
+    const imageModal = document.getElementById('image-modal');
+    const imageModalImg = document.getElementById('image-modal-img');
+    const imageModalContent = document.getElementById('image-modal-content');
+    const imageModalClose = document.getElementById('image-modal-close');
+    const imageModalPrev = document.getElementById('image-modal-prev');
+    const imageModalNext = document.getElementById('image-modal-next');
+    const zoomInBtn = document.getElementById('zoom-in-btn');
+    const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomLevelSpan = document.getElementById('zoom-level');
+    // const coachHint = document.getElementById('coach-hint');
+  
+    // ==================== ESTADO DA APLICAÇÃO (continuação) ====================
+    let rootFolderId = null;
+    let analysisQueue = [];
+    let currentAnalysisIndex = -1;
+    const processingLock = new Set();
+    let saveTimeout = null;
+    const undoSnapshots = new Map();
+    let modalImageIndex = 0;
+    let accordionState = {};
+    let isFirstLoadComplete = false;
+    let loadingInterval = null;
+    let phraseInterval = null;
+  
+    // Constantes de configuração
+    const MAX_CONCURRENT_AI_JOBS = 2;
+    const PREFETCH_AI_WINDOW = 2;
+    const GLOSSARIO_OCORRENCIAS = {
+      "Preventivas": [ "Pichação/Colagem/Sujeira/Ferrugem Leve", "Pintura Desgastada/Desbotada", "Cobertura Suja", "Caixa de Aterramento Sem Tampa", "Calçada Suja", "Fiação Exposta", "Itinerário Danificado/Ausente", "Pictogramas Danificados" ],
+      "Corretivas": [ "Estrutura Abalroada/Danificada", "Banco Quebrado", "Vidro Quebrado/Trincado", "Vidro Riscado (com necessidade de resina)", "Vidro Traseiro Ausente (Pendente)", "Ferrugem Severa/Infiltração", "Problema Elétrico", "Componente Ausente/Suprimido", "Calçada/Piso Podotátil Danificado", "Abrigo Suprimido/Agendado para Supressão", "Local em Obras" ]
     };
-    toast.dismissTimeout = null;
-    const startTimeout = () => {
-        if (timeout > 0) {
-            toast.dismissTimeout = setTimeout(() => dismissToast(toast), timeout);
-        }
-    };
-    startTimeout();
-    toast.addEventListener('mouseenter', () => clearTimeout(toast.dismissTimeout));
-    toast.addEventListener('mouseleave', startTimeout);
-    let isDragging = false, startX = 0, currentX = 0;
-    const onPointerDown = (e) => {
-        if (e.button !== 0 || e.target.tagName === 'BUTTON') return;
-        isDragging = true;
-        startX = e.clientX;
-        toast.style.transition = 'none';
-        toast.setPointerCapture(e.pointerId);
-        clearTimeout(toast.dismissTimeout);
-    };
-    const onPointerMove = (e) => {
-        if (!isDragging) return;
-        currentX = e.clientX - startX;
-        if (currentX > 0) toast.style.transform = `translateX(${currentX}px)`;
-    };
-    const onPointerUp = (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        toast.style.transition = 'transform 0.4s var(--transition-easing), opacity 0.4s var(--transition-easing)';
-        toast.releasePointerCapture(e.pointerId);
-        if (currentX > toast.offsetWidth * 0.4) {
-            dismissToast(toast);
-        } else {
-            toast.style.transform = 'translateX(0)';
-            startTimeout();
-        }
-    };
-    toast.addEventListener('pointerdown', onPointerDown);
-    toast.addEventListener('pointermove', onPointerMove);
-    toast.addEventListener('pointerup', onPointerUp);
-  }
-
-  // ==================== FUNÇÕES DE CONTROLE DA UI ====================
-  function showSpinner(text = 'Processando...') {
-    spinnerText.textContent = text;
-    spinner.style.display = 'flex';
-  }
-  function hideSpinner() {
-    spinner.style.display = 'none';
-  }
-  function switchScreen(screenToShow) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    screenToShow.classList.add('active');
-  }
-  function autosizeTextarea(textarea) {
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = (textarea.scrollHeight) + 'px';
-  }
-  function saveAccordionState() {
-    accordionState = {};
-    const groupTitles = document.querySelectorAll('#analysis-details .card-group-title');
-    groupTitles.forEach(title => {
-      const key = title.textContent.trim();
-      accordionState[key] = title.classList.contains('collapsed');
-    });
-  }
-  function typeWriterEffect(element, text, speed = 15, onComplete) {
-    let i = 0;
-    element.value = '';
-    element.focus();
-    element.classList.add('typing');
-    function type() {
-      if (i < text.length) {
-        element.value += text.charAt(i);
-        i++;
-        autosizeTextarea(element);
-        setTimeout(type, speed);
-      } else {
-        element.classList.remove('typing');
-        if (onComplete) onComplete();
+  
+    // ==================== SISTEMA DE NOTIFICAÇÃO (TOAST) ====================
+    // ... (código do toast permanece o mesmo)
+    function showNotification(message, type = 'info', action = null, timeout = 7000) {
+      const container = document.getElementById('notification-container');
+      if (!container) return;
+      const existingToasts = Array.from(container.children);
+      const firstPositions = new Map();
+      existingToasts.forEach(t => firstPositions.set(t, t.getBoundingClientRect()));
+      const toast = document.createElement('div');
+      toast.className = `toast-notification ${type}`;
+      const contentWrapper = document.createElement('div');
+      contentWrapper.className = 'toast-content';
+      const messageP = document.createElement('p');
+      messageP.textContent = message;
+      contentWrapper.appendChild(messageP);
+      if (action && action.label && action.callback) {
+          const actionsWrapper = document.createElement('div');
+          actionsWrapper.className = 'toast-actions';
+          const button = document.createElement('button');
+          button.textContent = action.label;
+          button.onclick = (e) => { e.stopPropagation(); action.callback(); dismissToast(toast); };
+          actionsWrapper.appendChild(button);
+          contentWrapper.appendChild(actionsWrapper);
       }
-    }
-    type();
-  }
-
-  function showModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.add('modal-visible');
-    }
-  }
-
-  function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.remove('modal-visible');
-    }
-  }
-
-  // ==================== LÓGICA DO DROPDOWN PERSONALIZADO ====================
-  function setupCustomSelect() {
-    // Popula o dropdown
-    customSelectOptionsList.innerHTML = '';
-    for (const category in GLOSSARIO_OCORRENCIAS) {
-      const categoryDiv = document.createElement('div');
-      categoryDiv.className = 'option-category';
-      categoryDiv.textContent = category;
-      customSelectOptionsList.appendChild(categoryDiv);
-
-      GLOSSARIO_OCORRENCIAS[category].forEach(item => {
-        const optionDiv = document.createElement('div');
-        optionDiv.className = 'option';
-        optionDiv.dataset.value = item;
-        optionDiv.textContent = item;
-        customSelectOptionsList.appendChild(optionDiv);
-      });
-    }
-
-    // Lógica para abrir/fechar
-    customSelectValue.addEventListener('click', (e) => {
-      e.stopPropagation();
-      customSelect.classList.toggle('open');
-    });
-
-    // Lógica para selecionar um item
-    customSelectOptionsList.addEventListener('click', (e) => {
-      if (e.target.classList.contains('option')) {
-        const selectedValue = e.target.dataset.value;
-        customSelectText.textContent = selectedValue;
-        customSelectText.classList.remove('placeholder');
-        customSelect.dataset.value = selectedValue; // Armazena o valor no elemento pai
-        
-        // Remove a classe 'selected' de todos e adiciona na clicada
-        customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
-        e.target.classList.add('selected');
-
-        customSelect.classList.remove('open');
-      }
-    });
-
-    // Lógica de busca
-    customSelectSearchInput.addEventListener('input', () => {
-      const searchTerm = customSelectSearchInput.value.toLowerCase();
-      customSelectOptionsList.querySelectorAll('.option').forEach(option => {
-        const itemText = option.textContent.toLowerCase();
-        option.classList.toggle('hidden', !itemText.includes(searchTerm));
-      });
-    });
-
-    // Fechar ao clicar fora
-    document.addEventListener('click', (e) => {
-      if (!customSelect.contains(e.target)) {
-        customSelect.classList.remove('open');
-      }
-    });
-  }
-  
-  // Chamar a configuração inicial
-  setupCustomSelect();
-
-
-  // ==================== LÓGICA DA LANDING PAGE (NOVO FLUXO) ====================
-
-  function setDriveWidgetState(newStatus, errorMessage) {
-    state.ui.driveWidget.status = newStatus;
-    clearInterval(loadingInterval);
-
-    mapFolderBtn.classList.remove('is-loading', 'is-error', 'is-success');
-
-    if (newStatus !== 'SUCCESS') {
-      mapFolderBtn.style.setProperty('--progress-width', '0%');
-    }
-
-    switch (newStatus) {
-      case 'IDLE':
-        mapFolderBtn.disabled = false;
-        mapFolderBtn.style.removeProperty('--progress-width');
-        break;
-
-      case 'LOADING':
-        mapFolderBtn.classList.add('is-loading');
-        mapFolderBtn.disabled = true;
-        
-        let progress = 0;
-        mapFolderBtn.style.setProperty('--progress-width', '0%');
-
-        loadingInterval = setInterval(() => {
-          if (progress < 90) { 
-            const increment = progress < 50 ? Math.random() * 10 + 5 : Math.random() * 2 + 1;
-            progress = Math.min(progress + increment, 90);
-            mapFolderBtn.style.setProperty('--progress-width', `${progress}%`);
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'toast-close-btn';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.onclick = (e) => { e.stopPropagation(); dismissToast(toast); };
+      toast.appendChild(contentWrapper);
+      toast.appendChild(closeBtn);
+      container.appendChild(toast);
+      requestAnimationFrame(() => toast.classList.add('show'));
+      existingToasts.forEach(t => {
+          const first = firstPositions.get(t);
+          const last = t.getBoundingClientRect();
+          const deltaY = first.top - last.top;
+          if (deltaY !== 0) {
+              t.style.transition = 'none';
+              t.style.transform = `translateY(${deltaY}px)`;
+              t.offsetHeight;
+              t.style.transition = 'transform 0.4s var(--transition-easing)';
+              t.style.transform = '';
           }
-        }, 350);
-        break;
-
-      case 'SUCCESS':
-        mapFolderBtn.style.setProperty('--progress-width', '100%');
-
-        setTimeout(() => {
-          mapFolderBtn.classList.remove('is-loading');
-          mapFolderBtn.classList.add('is-success');
-          
-          setTimeout(() => {
-            mapFolderBtn.disabled = false;
-            state.ui.driveWidget.isCollapsed = true;
-            updateWidgetUI();
-          }, 600);
-        }, 450);
-        break;
-
-      case 'ERROR':
-        mapFolderBtn.classList.remove('is-loading');
-        mapFolderBtn.classList.add('is-error');
-        mapFolderBtn.disabled = true;
-        showNotification(errorMessage || 'Ocorreu um erro.', 'warn');
-
-        setTimeout(() => {
-          mapFolderBtn.disabled = false;
-          mapFolderBtn.classList.remove('is-error');
-          mapFolderBtn.style.setProperty('--progress-width', '0%');
-          setDriveWidgetState('IDLE');
-        }, 3000);
-        break;
-    }
-  }
-
-  function updateWidgetUI() {
-    const isCollapsed = state.ui.driveWidget.isCollapsed;
-    inputSection.classList.toggle('collapsed', isCollapsed);
-    widgetHeader.classList.toggle('collapsed', isCollapsed);
-
-    if (state.ui.driveWidget.status === 'SUCCESS') {
-      resultsSection.classList.add('visible');
-    } else {
-      resultsSection.classList.remove('visible');
-    }
-  }
-
-  mapFolderBtn.addEventListener('click', () => {
-    let folderIdInput = folderInput.value.trim();
-    if (!folderIdInput) {
-      showNotification('Por favor, insira um ID ou link de pasta.', 'warn');
-      return;
-    }
-    const match = folderIdInput.match(/folders\/([a-zA-Z0-9_-]+)/);
-    const finalFolderId = match ? match[1] : folderIdInput;
-    rootFolderId = finalFolderId;
-    
-    setDriveWidgetState('LOADING');
-
-    google.script.run
-      .withSuccessHandler(handleFolderMappingSuccess)
-      .withFailureHandler(handleFolderMappingError)
-      .getFolderListForMapping(finalFolderId);
-  });
-
-  function handleFolderMappingSuccess(result) {
-    clearInterval(loadingInterval);
-    if (result.error || !result.success) {
-      handleFolderMappingError({ message: result.message || 'Resposta inválida do servidor.' });
-      return;
-    }
-    
-    setDriveWidgetState('SUCCESS');
-    
-    folderList.innerHTML = '';
-    if (result.folders && result.folders.length > 0) {
-      result.folders.forEach(node => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <label class="custom-checkbox">
-            <input type="checkbox" data-id="${node.id}" data-name="${node.name}" data-type="${node.equipmentType}" data-status="${node.status}">
-            <span class="checkmark"></span>
-            <span class="label-text">${node.name}</span>
-          </label>`;
-        folderList.appendChild(li);
       });
-    } else {
-      setDriveWidgetState('ERROR', 'Nenhuma subpasta encontrada na pasta fornecida.');
-      state.ui.driveWidget.isCollapsed = false;
-      updateWidgetUI();
+      const dismissToast = (element) => {
+          if (element.isDismissing) return;
+          element.isDismissing = true;
+          clearTimeout(element.dismissTimeout);
+          const container = element.parentElement;
+          const firstPositions = new Map();
+          Array.from(container.children).forEach(child => {
+              if (child !== element && !child.isDismissing) {
+                  firstPositions.set(child, child.getBoundingClientRect());
+              }
+          });
+          let hasCleanedUp = false;
+          const onAnimationEnd = () => {
+              if (hasCleanedUp) return;
+              hasCleanedUp = true;
+              if (element.parentElement) element.remove();
+              firstPositions.forEach((firstRect, child) => {
+                  const lastRect = child.getBoundingClientRect();
+                  const deltaY = firstRect.top - lastRect.top;
+                  if (deltaY !== 0) {
+                      child.style.transition = 'none';
+                      child.style.transform = `translateY(${deltaY}px)`;
+                      child.offsetHeight;
+                      child.style.transition = 'transform 0.4s var(--transition-easing)';
+                      child.style.transform = '';
+                  }
+              });
+          };
+          element.addEventListener('transitionend', onAnimationEnd, { once: true });
+          setTimeout(onAnimationEnd, 500);
+          element.style.transform = '';
+          element.style.transition = '';
+          requestAnimationFrame(() => element.classList.add('dismissing'));
+      };
+      toast.dismissTimeout = null;
+      const startTimeout = () => {
+          if (timeout > 0) {
+              toast.dismissTimeout = setTimeout(() => dismissToast(toast), timeout);
+          }
+      };
+      startTimeout();
+      toast.addEventListener('mouseenter', () => clearTimeout(toast.dismissTimeout));
+      toast.addEventListener('mouseleave', startTimeout);
+      let isDragging = false, startX = 0, currentX = 0;
+      const onPointerDown = (e) => {
+          if (e.button !== 0 || e.target.tagName === 'BUTTON') return;
+          isDragging = true;
+          startX = e.clientX;
+          toast.style.transition = 'none';
+          toast.setPointerCapture(e.pointerId);
+          clearTimeout(toast.dismissTimeout);
+      };
+      const onPointerMove = (e) => {
+          if (!isDragging) return;
+          currentX = e.clientX - startX;
+          if (currentX > 0) toast.style.transform = `translateX(${currentX}px)`;
+      };
+      const onPointerUp = (e) => {
+          if (!isDragging) return;
+          isDragging = false;
+          toast.style.transition = 'transform 0.4s var(--transition-easing), opacity 0.4s var(--transition-easing)';
+          toast.releasePointerCapture(e.pointerId);
+          if (currentX > toast.offsetWidth * 0.4) {
+              dismissToast(toast);
+          } else {
+              toast.style.transform = 'translateX(0)';
+              startTimeout();
+          }
+      };
+      toast.addEventListener('pointerdown', onPointerDown);
+      toast.addEventListener('pointermove', onPointerMove);
+      toast.addEventListener('pointerup', onPointerUp);
     }
-  }
-
-  function handleFolderMappingError(error) {
-    clearInterval(loadingInterval);
-    setDriveWidgetState('ERROR', error.message || 'Ocorreu um erro desconhecido.');
-  }
-
-  widgetHeader.addEventListener('click', () => {
-    if (state.ui.driveWidget.status !== 'LOADING') {
-      state.ui.driveWidget.isCollapsed = !state.ui.driveWidget.isCollapsed;
-      updateWidgetUI();
+  
+    // ==================== FUNÇÕES DE CONTROLE DA UI ====================
+    function showSpinner(text = 'Processando...') {
+      spinnerText.textContent = text;
+      spinner.style.display = 'flex';
     }
-  });
-
-  selectAllBtn.addEventListener('click', (e) => {
-      const checkboxes = folderList.querySelectorAll('input[type="checkbox"]');
-      const areAllChecked = Array.from(checkboxes).every(cb => cb.checked);
-      checkboxes.forEach(cb => cb.checked = !areAllChecked);
-      const icon = e.currentTarget.querySelector('.material-symbols-outlined');
-      const text = e.currentTarget.querySelector('span:not(.material-symbols-outlined)');
-      if (areAllChecked) {
-        icon.textContent = 'done_all';
-        text.textContent = 'Selecionar Todas';
-      } else {
-        icon.textContent = 'remove_done';
-        text.textContent = 'Desmarcar Todas';
+    function hideSpinner() {
+      spinner.style.display = 'none';
+    }
+    function switchScreen(screenToShow) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      screenToShow.classList.add('active');
+    }
+    function autosizeTextarea(textarea) {
+      if (!textarea) return;
+      textarea.style.height = 'auto';
+      textarea.style.height = (textarea.scrollHeight) + 'px';
+    }
+    function saveAccordionState() {
+      accordionState = {};
+      const groupTitles = document.querySelectorAll('#analysis-details .card-group-title');
+      groupTitles.forEach(title => {
+        const key = title.textContent.trim();
+        accordionState[key] = title.classList.contains('collapsed');
+      });
+    }
+    function typeWriterEffect(element, text, speed = 15, onComplete) {
+      let i = 0;
+      element.value = '';
+      element.focus();
+      element.classList.add('typing');
+      function type() {
+        if (i < text.length) {
+          element.value += text.charAt(i);
+          i++;
+          autosizeTextarea(element);
+          setTimeout(type, speed);
+        } else {
+          element.classList.remove('typing');
+          if (onComplete) onComplete();
+        }
       }
-  });
+      type();
+    }
+  
+    function showModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.add('modal-visible');
+      }
+    }
+  
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.remove('modal-visible');
+      }
+    }
+  
+    // ==================== LÓGICA DO DROPDOWN PERSONALIZADO ====================
+    function setupCustomSelect() {
+      // Popula o dropdown
+      customSelectOptionsList.innerHTML = '';
+      for (const category in GLOSSARIO_OCORRENCIAS) {
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'option-category';
+        categoryDiv.textContent = category;
+        customSelectOptionsList.appendChild(categoryDiv);
+  
+        GLOSSARIO_OCORRENCIAS[category].forEach(item => {
+          const optionDiv = document.createElement('div');
+          optionDiv.className = 'option';
+          optionDiv.dataset.value = item;
+          optionDiv.textContent = item;
+          customSelectOptionsList.appendChild(optionDiv);
+        });
+      }
+  
+      // Lógica para abrir/fechar
+      customSelectValue.addEventListener('click', (e) => {
+        e.stopPropagation();
+        customSelect.classList.toggle('open');
+      });
+  
+      // Lógica para selecionar um item
+      customSelectOptionsList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('option')) {
+          const selectedValue = e.target.dataset.value;
+          customSelectText.textContent = selectedValue;
+          customSelectText.classList.remove('placeholder');
+          customSelect.dataset.value = selectedValue; // Armazena o valor no elemento pai
+          
+          // Remove a classe 'selected' de todos e adiciona na clicada
+          customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+          e.target.classList.add('selected');
+  
+          customSelect.classList.remove('open');
+        }
+      });
+  
+      // Lógica de busca
+      customSelectSearchInput.addEventListener('input', () => {
+        const searchTerm = customSelectSearchInput.value.toLowerCase();
+        customSelectOptionsList.querySelectorAll('.option').forEach(option => {
+          const itemText = option.textContent.toLowerCase();
+          option.classList.toggle('hidden', !itemText.includes(searchTerm));
+        });
+      });
+  
+      // Fechar ao clicar fora
+      document.addEventListener('click', (e) => {
+        if (!customSelect.contains(e.target)) {
+          customSelect.classList.remove('open');
+        }
+      });
+    }
+    
+    // Chamar a configuração inicial
+    setupCustomSelect();
+  
+  
+    // ==================== LÓGICA DA LANDING PAGE (NOVO FLUXO) ====================
+  
+    function setDriveWidgetState(newStatus, errorMessage, progressData = null) {
+      state.ui.driveWidget.status = newStatus;
+      clearInterval(loadingInterval);
+  
+      mapFolderBtn.classList.remove('is-loading', 'is-error', 'is-success');
+  
+      if (newStatus !== 'SUCCESS') {
+        mapFolderBtn.style.setProperty('--progress-width', '0%');
+      }
+  
+      switch (newStatus) {
+        case 'IDLE':
+          mapFolderBtn.disabled = false;
+          mapFolderBtn.style.removeProperty('--progress-width');
+          updateMappingProgressUI(0, 0, 0);
+          break;
+  
+        case 'LOADING':
+          mapFolderBtn.classList.add('is-loading');
+          mapFolderBtn.disabled = true;
+          
+          // Progress will be handled by the polling system
+          updateMappingProgressUI(0, 0, 0);
+          mapFolderBtn.style.setProperty('--progress-width', '0%');
+          break;
+  
+        case 'SUCCESS':
+          // Complete to 100% first for a satisfying finish
+          mapFolderBtn.style.setProperty('--progress-width', '100%');
+          updateMappingProgressUI(progressData?.processed || 0, progressData?.total || 0, 100);
 
-  startAnalysisBtn.addEventListener('click', () => {
-    const selectedCheckboxes = folderList.querySelectorAll('input[type="checkbox"]:checked');
-    if (selectedCheckboxes.length === 0) {
-      showNotification('Selecione pelo menos uma pasta para analisar.', 'warn');
-      return;
+          // Transition plan:
+          // 1) Remove loading visuals, enter a short 'resetting' state keeping the loading label visible
+          // 2) Animate bar width back to 0 with default background
+          // 3) When the bar finishes shrinking, reveal the original icon/text
+          setTimeout(() => {
+            mapFolderBtn.classList.remove('is-loading', 'is-error', 'is-success');
+            mapFolderBtn.classList.add('is-resetting');
+            // Kick the shrink animation in a new frame
+            requestAnimationFrame(() => {
+              mapFolderBtn.style.setProperty('--progress-width', '0%');
+            });
+            // Wait for the width transition to complete (matches CSS 0.6s) before restoring
+            setTimeout(() => {
+              mapFolderBtn.classList.remove('is-resetting');
+              mapFolderBtn.disabled = false;
+              state.ui.driveWidget.isCollapsed = true;
+              updateWidgetUI();
+            }, 700);
+          }, 350);
+          break;
+  
+        case 'ERROR':
+          // Show error state briefly
+          mapFolderBtn.classList.remove('is-loading');
+          mapFolderBtn.classList.add('is-error');
+          mapFolderBtn.disabled = true;
+          updateMappingProgressUI(0, 0, 0);
+          showNotification(errorMessage || 'Ocorreu um erro.', 'warn');
+
+          // After a short pause, reset the bar to 0 while keeping loading label hidden from flicker
+          setTimeout(() => {
+            mapFolderBtn.classList.remove('is-error');
+            mapFolderBtn.classList.add('is-resetting');
+            requestAnimationFrame(() => {
+              mapFolderBtn.style.setProperty('--progress-width', '0%');
+            });
+            setTimeout(() => {
+              mapFolderBtn.classList.remove('is-resetting');
+              mapFolderBtn.disabled = false;
+              setDriveWidgetState('IDLE');
+            }, 700);
+          }, 900);
+          break;
+      }
     }
 
-    startAnalysisBtn.disabled = true;
-    startAnalysisBtn.classList.add('is-loading');
+    // ==================== COACH HINTS (Tutorial Inteligente) ====================
+    /* HINT BOX LOGIC - TEMPORARILY COMMENTED OUT
+    const HINT_DURATION_MS = 6000; // extended duration per request
+    const BASE_GAP_AFTER_HIDE_MS = 500; // enforce spacing between hints
+    let coachHideTimeout = null;
+    let coachBusy = false;
+    let nextAllowedAt = 0;
+    let lastUserActionAt = Date.now();
+    function computeHintGap() {
+      const since = Date.now() - lastUserActionAt;
+      return since < 3000 ? BASE_GAP_AFTER_HIDE_MS + 1000 : BASE_GAP_AFTER_HIDE_MS;
+    }
+    let lastMouseX = window.innerWidth / 2, lastMouseY = window.innerHeight / 2;
+    let animFrameId = null;
+    let targetX = lastMouseX, targetY = lastMouseY;
+    let hintTargetX = lastMouseX, hintTargetY = lastMouseY; // Posição alvo da hint box
+    let currentHintX = lastMouseX, currentHintY = lastMouseY; // Posição atual da hint box
+    const lerp = (a,b,t)=>a+(b-a)*t;
+    const isMobile = () => window.innerWidth <= 992;
 
-    // Dicionário de frases expandido
-    const phrases = [
-      'Analisando com IA...', 
-      'Consultando oráculos de silício...',
-      'Alinhando matrizes de dados...',
-      'Verificando a integridade dos pixels...',
-      'Usando todo o poder da IA...', 
-      'Calibrando os algoritmos...',
-      'Aguarde, a mágica está acontecendo...',
-      'Análise profunda...'
-    ];
-    let phraseIndex = 0;
-    const phraseElement = startAnalysisBtn.querySelector('.loading-phrases');
-    
-    // Limpa o intervalo anterior, se existir
-    if (phraseInterval) clearInterval(phraseInterval);
-
-    // Lógica de animação de texto aprimorada
-    const cyclePhrases = () => {
-      // 1. Esmaecer para sair
-      phraseElement.style.opacity = '0';
-      phraseElement.style.transform = 'translateY(8px)';
-
-      setTimeout(() => {
-        // 2. Trocar o texto
-        phraseIndex = (phraseIndex + 1) % phrases.length;
-        phraseElement.textContent = phrases[phraseIndex];
-        
-        // 3. Esmaecer para entrar
-        phraseElement.style.opacity = '1';
-        phraseElement.style.transform = 'translateY(0)';
-      }, 450); // Deve corresponder à duração da transição do CSS
+    const hintsCatalog = {
+      start: { icon: 'touch_app', text: 'Clique para expandir a galeria.' },
+      grid: { icon: 'grid_view', text: 'Toque nas imagens para ver em grade.' },
+      modal: { icon: 'zoom_in', text: 'Clique numa imagem para abrir e dar zoom.' },
+      cardActions: { icon: 'swipe_right', text: 'Passe o mouse nos cards para ver ações.' },
+      conclude: { icon: 'check_circle', text: 'Use "Concluir e Avançar" após revisar.' },
+      sidebar: { icon: 'menu', text: 'Abra o menu para ver a fila de análise.' },
+      drive: { icon: 'folder_open', text: 'Cole o link da pasta e clique em Mapear.' }
     };
-    
-    // Inicia o ciclo
-    phraseElement.textContent = phrases[0];
-    phraseInterval = setInterval(cyclePhrases, 2500); // Intervalo entre as frases
+    */
 
-    analysisQueue = Array.from(selectedCheckboxes).map(cb => ({
-      id: cb.dataset.id,
-      name: cb.dataset.name,
-      status: cb.dataset.status,
-      equipmentType: cb.dataset.type,
-      analysisData: null,
-      imageData: null
-    }));
-    
-    google.script.run
-        .withSuccessHandler(response => {
-            if (response && !response.error && response.url) {
-                openSheetBtn.disabled = false;
-                openSheetBtn.dataset.url = response.url;
-            } else {
-                console.error("Não foi possível obter a URL da planilha.");
-                showNotification("Não foi possível encontrar a planilha de relatório.", "warn");
+    /* 
+    function clampToViewport(x, y) {
+      const padding = 10;
+      const rect = coachHint.getBoundingClientRect();
+      const width = rect.width || 260;
+      const height = rect.height || 40;
+      
+      // OFFSETS PADRÃO
+      const defaultOffsetX = 0; // Borda esquerda alinhada com mouse
+      const defaultOffsetY = 15; // Distância abaixo do mouse
+      
+      // ZONAS DE DETECÇÃO DE BORDA (quanto mais próximo, maior o ajuste)
+      const rightBorderZone = 150; // Distância da borda direita para começar ajuste
+      const bottomBorderZone = 100; // Distância da borda inferior para começar ajuste
+      
+      // Verificar limites da tela
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      const maxX = screenWidth - padding - width;
+      const minX = padding;
+      const maxY = screenHeight - padding - height;
+      const minY = padding;
+      
+      let adjustedX, adjustedY;
+      let offsetX = defaultOffsetX;
+      let offsetY = defaultOffsetY;
+      
+      // === LÓGICA INTELIGENTE DE AUTO-AJUSTE ===
+      
+      // 1. AUTO-AJUSTE HORIZONTAL (Borda Direita)
+      const distanceToRightBorder = screenWidth - x;
+      
+      if (distanceToRightBorder <= rightBorderZone) {
+        // Mouse próximo à borda direita - calcular ajuste suave
+        const proximityRatio = Math.max(0, (rightBorderZone - distanceToRightBorder) / rightBorderZone);
+        
+        // Ajuste suave: quanto mais próximo da borda, mais a hint se move para a esquerda
+        const maxShift = width + 20; // Máximo que a hint pode se mover para a esquerda
+        const horizontalShift = proximityRatio * maxShift;
+        
+        offsetX = defaultOffsetX - horizontalShift;
+      }
+      
+      // 2. AUTO-AJUSTE VERTICAL (Borda Inferior)
+      const distanceToBottomBorder = screenHeight - y;
+      
+      if (distanceToBottomBorder <= bottomBorderZone) {
+        // Mouse próximo à borda inferior - ajustar posição
+        const proximityRatio = Math.max(0, (bottomBorderZone - distanceToBottomBorder) / bottomBorderZone);
+        
+        // Mover hint um pouco mais à direita para não sobrepor o mouse
+        const rightShift = 25 * proximityRatio; // Máximo 25px à direita
+        offsetX = Math.max(defaultOffsetX, defaultOffsetX + rightShift);
+        
+        // Ajustar verticalmente - pode ir acima se necessário
+        const maxUpShift = height + 30;
+        const verticalShift = proximityRatio * maxUpShift;
+        offsetY = defaultOffsetY - verticalShift;
+      }
+      
+      // === APLICAR POSICIONAMENTO ===
+      
+      // Posição horizontal com offset calculado
+      const targetX = x + offsetX;
+      
+      // Garantir que a hint não saia da tela horizontalmente
+      if (targetX < minX) {
+        adjustedX = minX;
+      } else if (targetX + width > screenWidth - padding) {
+        adjustedX = screenWidth - padding - width;
+      } else {
+        adjustedX = targetX;
+      }
+      
+      // Posição vertical com offset calculado
+      const targetY = y + offsetY;
+      
+      // Garantir que a hint não saia da tela verticalmente
+      if (targetY < minY) {
+        adjustedY = minY;
+      } else if (targetY + height > screenHeight - padding) {
+        adjustedY = screenHeight - padding - height;
+      } else {
+        adjustedY = targetY;
+      }
+      
+      return [adjustedX, adjustedY];
+    }
+    */
+
+    /*
+    function positionCoachHint() {
+      if (!coachHint || isMobile()) return; // mobile is fixed
+      const mouseSmoothingFactor = 0.15; // Suavidade para seguir o mouse
+      const positionSmoothingFactor = 0.12; // Suavidade para mudanças de posição da hint
+      
+      // Movimento suave seguindo o mouse
+      targetX = lerp(targetX, lastMouseX, mouseSmoothingFactor);
+      targetY = lerp(targetY, lastMouseY, mouseSmoothingFactor);
+      
+      // Calcular nova posição alvo da hint box
+      const [newTargetX, newTargetY] = clampToViewport(targetX, targetY);
+      
+      // Aplicar suavidade na mudança de posição da hint box
+      hintTargetX = lerp(hintTargetX, newTargetX, positionSmoothingFactor);
+      hintTargetY = lerp(hintTargetY, newTargetY, positionSmoothingFactor);
+      
+      // Aplicar suavidade adicional na posição final para movimento ultra suave
+      currentHintX = lerp(currentHintX, hintTargetX, 0.2);
+      currentHintY = lerp(currentHintY, hintTargetY, 0.2);
+      
+      // Aplicar a posição final
+      coachHint.style.left = `${currentHintX}px`;
+      coachHint.style.top = `${currentHintY}px`;
+      
+      animFrameId = requestAnimationFrame(positionCoachHint);
+    }
+    */
+
+    /*
+    let coachPinned = false;
+    function showCoachHint(key, _unused = null) {
+      if (!coachHint) return;
+      if (coachBusy || Date.now() < nextAllowedAt) return;
+      try { if (localStorage.getItem(`hintSeen_${key}`) === '1') return; } catch(_) {}
+      const hint = hintsCatalog[key];
+      if (!hint) return;
+      coachHint.innerHTML = `<span class="material-symbols-outlined">${hint.icon}</span><span class="hint-text">${hint.text}</span>`;
+      coachPinned = false; // always follow cursor now
+      
+      // Inicializar posições suavemente quando a hint aparece
+      if (!isMobile()) {
+        // Calcular posição inicial
+        const [initialX, initialY] = clampToViewport(lastMouseX, lastMouseY);
+        hintTargetX = initialX;
+        hintTargetY = initialY;
+        currentHintX = initialX;
+        currentHintY = initialY;
+        
+        // Posicionar imediatamente para evitar "salto"
+        coachHint.style.left = `${initialX}px`;
+        coachHint.style.top = `${initialY}px`;
+        
+        if (!animFrameId) animFrameId = requestAnimationFrame(positionCoachHint);
+      }
+      
+      coachHint.classList.add('show');
+      coachHint.style.display = 'inline-flex';
+      clearTimeout(coachHideTimeout);
+      coachHideTimeout = setTimeout(hideCoachHint, HINT_DURATION_MS);
+      coachBusy = true;
+      try { localStorage.setItem(`hintSeen_${key}`, '1'); } catch(_) {}
+    }
+
+    function hideCoachHint() {
+      if (!coachHint) return;
+      coachHint.classList.remove('show');
+      coachHint.classList.add('hiding');
+      setTimeout(()=>{ 
+        coachHint.style.display = 'none';
+        coachHint.classList.remove('hiding');
+        if (!isMobile() && !animFrameId && !coachPinned) {
+          animFrameId = requestAnimationFrame(positionCoachHint);
+        }
+        coachPinned = false;
+        coachBusy = false;
+        nextAllowedAt = Date.now() + computeHintGap();
+      }, 250);
+    }
+    */
+
+    /*
+    // Mouse-follow behavior for desktop
+    window.addEventListener('mousemove', (e) => {
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      lastUserActionAt = Date.now();
+      if (!isMobile()) {
+        if (!animFrameId) animFrameId = requestAnimationFrame(positionCoachHint);
+      }
+    }, { passive: true });
+    window.addEventListener('click', () => { lastUserActionAt = Date.now(); }, { passive: true });
+    window.addEventListener('keydown', () => { lastUserActionAt = Date.now(); });
+    window.addEventListener('touchstart', () => { lastUserActionAt = Date.now(); }, { passive: true });
+    */
+
+    // Heurística simples: prever intenção e mostrar dicas contextuais
+    const userSignals = {
+      clickedImageStack: 0,
+      openedGrid: 0,
+      openedModal: 0,
+      performedCardHover: 0,
+      advancedFolder: 0,
+      openedSidebar: 0,
+    };
+    const userTimeline = [];
+    function recordUserAction(actionType, meta = {}) {
+      const entry = { t: Date.now(), type: actionType, meta };
+      userTimeline.push(entry);
+      if (userTimeline.length > 30) userTimeline.shift();
+      // lastUserActionAt = entry.t;
+    }
+
+    /*
+    function maybeCoach(key, condition) {
+      if (condition) showCoachHint(key);
+    }
+
+    // Primeira visita: dicas iniciais
+    (function bootHints(){
+      try {
+        if (localStorage.getItem('coachBooted') === '1') return;
+        // Na landing: orientar a mapear pasta
+        maybeCoach('drive', !!document.getElementById('landing-page').classList.contains('active'));
+        localStorage.setItem('coachBooted','1');
+      } catch(_) {}
+    })();
+    */
+
+    // ==================== COACH ENGINE (Assíncrono e Contextual) ====================
+    /*
+    function startCoachEngine() {
+      const hasSeen = (key) => { try { return localStorage.getItem(`hintSeen_${key}`) === '1'; } catch(_) { return false; } };
+
+      const getSelectedCount = () => folderList.querySelectorAll('input[type="checkbox"]:checked').length;
+      const getFoldersCount = () => folderList.querySelectorAll('input[type="checkbox"]').length;
+      const getProgress = () => {
+        try { return calculateAnalysisProgress(); } catch(_) { return 0; }
+      };
+      const getStats = () => {
+        const item = analysisQueue[currentAnalysisIndex];
+        const data = item?.analysisData;
+        return {
+          equipamentos: data?.quantidade_equipamentos_identificados || 0,
+          duracao: data?.analise_temporal?.duracao_servico_minutos || null
+        };
+      };
+      const getCardsSummary = () => {
+        const item = analysisQueue[currentAnalysisIndex];
+        const diag = item?.analysisData?.diagnostico_manutencao || {};
+        return {
+          antes: (diag.ocorrencias_identificadas_antes || []).length,
+          exec: (diag.servicos_executados || []).length,
+          pend: (diag.pendencias_remanescentes_depois || []).length,
+        };
+      };
+
+      const providers = [
+        {
+          key: 'drive', icon: 'link', priority: 10,
+          when: () => landingPage.classList.contains('active') && !resultsSection.classList.contains('visible') && (!folderInput.value || folderInput.value.trim() === ''),
+          text: () => 'Cole o link da pasta e clique em Mapear.'
+        },
+        {
+          key: 'select', icon: 'done_all', priority: 9,
+          when: () => resultsSection.classList.contains('visible') && getFoldersCount() > 0 && getSelectedCount() === 0,
+          text: () => `Selecione as pastas desejadas (${getFoldersCount()} disponíveis).`
+        },
+        {
+          key: 'start', icon: 'play_circle', priority: 8,
+          when: () => resultsSection.classList.contains('visible') && getSelectedCount() > 0 && !startAnalysisBtn.disabled,
+          text: () => `Clique em Iniciar Análise (${getSelectedCount()} selecionadas).`
+        },
+        {
+          key: 'stats', icon: 'analytics', priority: 7,
+          when: () => mainScreen.classList.contains('active') && !!analysisDetails.querySelector('.card.card-info'),
+          text: () => {
+            const s = getStats();
+            return `Veja as informações da atividade (Equip.: ${s.equipamentos}${s.duracao ? `, Duração: ${s.duracao}min` : ''}).`;
+          }
+        },
+        {
+          key: 'grid', icon: 'grid_view', priority: 6,
+          when: () => mainScreen.classList.contains('active') && !imageStack.classList.contains('grid-view') && !!imageStack.querySelector('.image-wrapper'),
+          text: () => 'Clique no painel de imagens para ver em grade.'
+        },
+        {
+          key: 'modal', icon: 'zoom_in', priority: 5,
+          when: () => imageStack.classList.contains('grid-view') && !!imageStack.querySelector('.image-wrapper'),
+          text: () => 'Abra uma imagem e use zoom/arrasto; navegue pelas setas.'
+        },
+        {
+          key: 'cardActions', icon: 'task_alt', priority: 4,
+          when: () => !!analysisDetails.querySelector('.card-group-title') && !!analysisDetails.querySelector('.card'),
+          text: () => {
+            const c = getCardsSummary();
+            return `Revise os cards (Antes: ${c.antes}, Exec.: ${c.exec}, Pend.: ${c.pend}) e ajuste o status.`;
+          }
+        },
+        {
+          key: 'add', icon: 'add_circle', priority: 3,
+          when: () => !!analysisDetails.querySelector('.card-add'),
+          text: () => 'Adicione ocorrências pelo botão “Adicionar Ocorrência”.'
+        },
+        {
+          key: 'ai', icon: 'auto_awesome', priority: 2,
+          when: () => !!analysisDetails.querySelector('#conclusion-card #gemini-conclusion-btn'),
+          text: () => 'Use “Sugerir” para gerar a conclusão com IA.'
+        },
+        {
+          key: 'sidebar', icon: 'menu', priority: 1,
+          when: () => mainScreen.classList.contains('active') && !document.body.classList.contains('sidebar-open'),
+          text: () => `Abra o menu para ver fila e progresso (${getProgress()}%).`
+        },
+        {
+          key: 'conclude', icon: 'arrow_forward', priority: 0,
+          when: () => mainScreen.classList.contains('active') && !!nextFolderBtn,
+          text: () => `Concluir e Avançar para salvar e ir ao próximo endereço (${getProgress()}% concluído).`
+        },
+      ];
+
+      // Adaptive inactivity thresholds
+      const INACTIVITY_THRESHOLD_MS = 5500; // base idle time before hint
+      const LONG_IDLE_MS = 15000;          // after this, we can be more proactive
+
+      const loop = setInterval(() => {
+        // Show hint only if user is inactive and pacing gates allow it
+        if (coachBusy || Date.now() < nextAllowedAt) return;
+        const idle = Date.now() - lastUserActionAt;
+        if (idle < (idle > LONG_IDLE_MS ? 3000 : INACTIVITY_THRESHOLD_MS)) return;
+
+        let eligible = providers
+          .filter(p => p.when() && !hasSeen(p.key))
+          .sort((a,b) => b.priority - a.priority);
+
+        // First session: ensure all hints can appear at least once
+        try {
+          const firstSession = localStorage.getItem('coachBooted') === '1' && localStorage.getItem('coachFirstRunDone') !== '1';
+          if (firstSession && eligible.length === 0) {
+            // Allow next unseen hint even if condition became satisfied too quickly
+            eligible = providers.filter(p => !hasSeen(p.key)).sort((a,b)=>b.priority-a.priority);
+            if (eligible.length === 0) localStorage.setItem('coachFirstRunDone','1');
+          }
+        } catch(_) {}
+        if (eligible.length === 0) return;
+
+        const chosen = eligible[0];
+
+        // Monta o contexto para IA leve (Gemma) decidir/refinar a micro-dica
+        const context = {
+          ui: {
+            landingActive: document.getElementById('landing-page').classList.contains('active'),
+            resultsVisible: resultsSection.classList.contains('visible'),
+            folderInputEmpty: !folderInput.value || folderInput.value.trim() === '',
+            foldersCount: getFoldersCount(),
+            selectedFolders: getSelectedCount(),
+            startEnabled: !startAnalysisBtn.disabled,
+            mainScreenActive: document.getElementById('main-screen').classList.contains('active'),
+            cardInfoVisible: !!analysisDetails.querySelector('.card.card-info'),
+            gridView: imageStack.classList.contains('grid-view'),
+            imagesCount: imageStack.querySelectorAll('.image-wrapper').length,
+            hasCardGroups: !!analysisDetails.querySelector('.card-group-title'),
+            cardsCount: analysisDetails.querySelectorAll('.card').length,
+            hasAddOccurrence: !!analysisDetails.querySelector('.card-add'),
+            hasGeminiConclusion: !!analysisDetails.querySelector('#conclusion-card #gemini-conclusion-btn'),
+            sidebarOpen: document.body.classList.contains('sidebar-open'),
+            hasConcludeCta: !!nextFolderBtn,
+          },
+          progress: { percent: (typeof calculateAnalysisProgress === 'function') ? calculateAnalysisProgress() : 0 },
+          stats: (()=>{
+            try {
+              const item = analysisQueue[currentAnalysisIndex];
+              const data = item?.analysisData;
+              return {
+                equipamentos: data?.quantidade_equipamentos_identificados || 0,
+                duracao: data?.analise_temporal?.duracao_servico_minutos || null
+              };
+            } catch(_) { return { equipamentos: 0, duracao: null }; }
+          })(),
+          cards: (()=>{
+            try {
+              const item = analysisQueue[currentAnalysisIndex];
+              const diag = item?.analysisData?.diagnostico_manutencao || {};
+              return {
+                antes: (diag.ocorrencias_identificadas_antes || []).length,
+                exec: (diag.servicos_executados || []).length,
+                pend: (diag.pendencias_remanescentes_depois || []).length,
+              };
+            } catch(_) { return { antes: 0, exec: 0, pend: 0 }; }
+          })(),
+          device: (isMobile() ? 'mobile' : 'desktop'),
+          idleMs: idle,
+          recentActions: { advancedFolder: (userSignals.advancedFolder||0) }
+        };
+
+        // Gemma desativado para hints - mostra dica local imediatamente
+        hintsCatalog[chosen.key] = { icon: chosen.icon, text: chosen.text() };
+        showCoachHint(chosen.key);
+      }, 500);
+    }
+    */
+
+    /*
+    // Insights Engine: gera insights amigáveis com base na timeline
+    (function startInsightsEngine(){
+      setInterval(() => {
+        if (coachBusy || Date.now() < nextAllowedAt) return;
+        const idle = Date.now() - lastUserActionAt;
+        if (idle < 8000) return;
+        const context = {
+          ui: {
+            landingActive: document.getElementById('landing-page').classList.contains('active'),
+            resultsVisible: resultsSection.classList.contains('visible'),
+            mainScreenActive: document.getElementById('main-screen').classList.contains('active'),
+            sidebarOpen: document.body.classList.contains('sidebar-open'),
+          },
+          progress: { percent: (typeof calculateAnalysisProgress === 'function') ? calculateAnalysisProgress() : 0 },
+          stats: (()=>{ try { const it=analysisQueue[currentAnalysisIndex]; const d=it?.analysisData; return { equipamentos:d?.quantidade_equipamentos_identificados||0, duracao:d?.analise_temporal?.duracao_servico_minutos||null }; } catch(_) { return { equipamentos:0, duracao:null }; } })(),
+          cards: (()=>{ try { const it=analysisQueue[currentAnalysisIndex]; const g=it?.analysisData?.diagnostico_manutencao||{}; return { antes:(g.ocorrencias_identificadas_antes||[]).length, exec:(g.servicos_executados||[]).length, pend:(g.pendencias_remanescentes_depois||[]).length }; } catch(_) { return { antes:0, exec:0, pend:0 }; } })(),
+          device: (isMobile()? 'mobile':'desktop'),
+          idleMs: idle,
+          timeline: userTimeline.slice(-20)
+        };
+        google.script.run
+                    .withSuccessHandler((jsonStr)=>{
+            try {
+              const payload = JSON.parse(jsonStr);
+              console.log('[Gemma Insight]', payload);
+              if (payload.decision !== 'show' || payload.type !== 'insight') return;
+              const icon = payload.icon || 'lightbulb';
+              const message = payload.message || '';
+              if (!message) return;
+              const key = 'insight_' + Date.now();
+              hintsCatalog[key] = { icon, text: message };
+              showCoachHint(key);
+            } catch(err) {
+              console.error('[Gemma Insight ERROR]', err);
             }
-            startProcessingQueue();
-        })
-        .withFailureHandler(err => {
-            console.error("Erro ao buscar URL da planilha:", err);
-            showNotification("Erro ao tentar localizar a planilha de relatório.", "warn");
-            startAnalysisBtn.disabled = false;
-            startAnalysisBtn.classList.remove('is-loading');
-            clearInterval(phraseInterval);
-        })
-        .getReportSheetUrl(rootFolderId);
-  });
+          })
+          .withFailureHandler((err)=>{
+            console.error('[Gemma Insight FAILURE]', err);
+          })
+          .gerarInsightUsuarioComGemma(JSON.stringify(context));
+      }, 3000);
+    })();
 
-  // ==================== LÓGICA DA FILA E ANÁLISE ====================
-  function startProcessingQueue() {
-    renderSidebar();
-    prefetchExistingData();
-    fetchAndDisplayFolder(0, true);
-  }
-
-  function prefetchExistingData() {
-    analysisQueue.forEach((item, index) => {
-      if ((item.status === 'analyzed' || item.status === 'reviewed') && !item.analysisData) {
+    // Start coach engine (async, contextual)
+    startCoachEngine();
+    */
+  
+    let progressPollingInterval = null;
+    let currentMappingProgress = { processed: 0, total: 0, percentage: 0 };
+  
+    function startProgressPolling(folderId) {
+      // Clear any existing polling
+      if (progressPollingInterval) {
+        clearInterval(progressPollingInterval);
+      }
+      
+      // Reset progress
+      currentMappingProgress = { processed: 0, total: 0, percentage: 0 };
+      
+      // Simulate realistic progress updates
+      let simulatedProgress = 0;
+      let simulatedProcessed = 0;
+      let simulatedTotal = 0;
+      
+      // Start polling every 100ms for smoother updates
+      progressPollingInterval = setInterval(() => {
+        // Simulate progress until we get real data
+        if (currentMappingProgress.total === 0) {
+          simulatedProgress = Math.min(simulatedProgress + Math.random() * 3, 85);
+          simulatedProcessed = Math.floor(simulatedProgress / 100 * 20); // Assume ~20 folders
+          simulatedTotal = 20;
+          
+          updateMappingProgressUI(simulatedProcessed, simulatedTotal, Math.round(simulatedProgress));
+          mapFolderBtn.style.setProperty('--progress-width', `${simulatedProgress}%`);
+        } else {
+          // Use real progress data
+          updateMappingProgressUI(
+            currentMappingProgress.processed,
+            currentMappingProgress.total,
+            currentMappingProgress.percentage
+          );
+          mapFolderBtn.style.setProperty('--progress-width', `${currentMappingProgress.percentage}%`);
+        }
+      }, 100);
+    }
+  
+    function stopProgressPolling() {
+      if (progressPollingInterval) {
+        clearInterval(progressPollingInterval);
+        progressPollingInterval = null;
+      }
+    }
+  
+    function updateMappingProgressUI(processed, total, percentage) {
+      const progressText = mapFolderBtn.querySelector('.mapping-progress-text');
+      const progressCount = mapFolderBtn.querySelector('.mapping-progress-count');
+      
+      if (progressText && progressCount) {
+        if (total > 0) {
+          progressText.textContent = `Mapeando pastas...`;
+          progressCount.textContent = `${processed}/${total}`;
+        } else {
+          progressText.textContent = `Iniciando mapeamento...`;
+          progressCount.textContent = '';
+        }
+      }
+    }
+  
+    function updateWidgetUI() {
+      const isCollapsed = state.ui.driveWidget.isCollapsed;
+      inputSection.classList.toggle('collapsed', isCollapsed);
+      widgetHeader.classList.toggle('collapsed', isCollapsed);
+  
+      if (state.ui.driveWidget.status === 'SUCCESS') {
+        resultsSection.classList.add('visible');
+      } else {
+        resultsSection.classList.remove('visible');
+      }
+    }
+  
+    mapFolderBtn.addEventListener('click', () => {
+      let folderIdInput = folderInput.value.trim();
+      if (!folderIdInput) {
+        showNotification('Por favor, insira um ID ou link de pasta.', 'warn');
+        return;
+      }
+      const match = folderIdInput.match(/folders\/([a-zA-Z0-9_-]+)/);
+      const finalFolderId = match ? match[1] : folderIdInput;
+      rootFolderId = finalFolderId;
+      
+      setDriveWidgetState('LOADING');
+      
+      // Start polling for progress
+      startProgressPolling(finalFolderId);
+  
+      google.script.run
+        .withSuccessHandler(handleFolderMappingSuccess)
+        .withFailureHandler(handleFolderMappingError)
+        .getFolderListForMappingWithProgress(finalFolderId);
+    });
+  
+    function handleFolderMappingSuccess(result) {
+      clearInterval(loadingInterval);
+      stopProgressPolling();
+      
+      if (result.error || !result.success) {
+        handleFolderMappingError({ message: result.message || 'Resposta inválida do servidor.' });
+        return;
+      }
+      
+      // Update final progress
+      if (result.progress) {
+        currentMappingProgress = result.progress;
+        updateMappingProgressUI(
+          result.progress.processed,
+          result.progress.total,
+          result.progress.percentage
+        );
+      }
+      
+      setDriveWidgetState('SUCCESS', null, result.progress);
+      
+      folderList.innerHTML = '';
+      if (result.folders && result.folders.length > 0) {
+        result.folders.forEach(node => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <label class="custom-checkbox">
+              <input type="checkbox" data-id="${node.id}" data-name="${node.name}" data-type="${node.equipmentType}" data-status="${node.status}">
+              <span class="checkmark"></span>
+              <span class="label-text">${node.name}</span>
+            </label>`;
+          folderList.appendChild(li);
+        });
+      } else {
+        setDriveWidgetState('ERROR', 'Nenhuma subpasta encontrada na pasta fornecida.');
+        state.ui.driveWidget.isCollapsed = false;
+        updateWidgetUI();
+      }
+    }
+  
+    function handleFolderMappingError(error) {
+      clearInterval(loadingInterval);
+      stopProgressPolling();
+      setDriveWidgetState('ERROR', error.message || 'Ocorreu um erro desconhecido.');
+    }
+  
+    widgetHeader.addEventListener('click', () => {
+      if (state.ui.driveWidget.status !== 'LOADING') {
+        state.ui.driveWidget.isCollapsed = !state.ui.driveWidget.isCollapsed;
+        updateWidgetUI();
+      }
+    });
+  
+    selectAllBtn.addEventListener('click', (e) => {
+        const checkboxes = folderList.querySelectorAll('input[type="checkbox"]');
+        const areAllChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !areAllChecked);
+        const icon = e.currentTarget.querySelector('.material-symbols-outlined');
+        const text = e.currentTarget.querySelector('span:not(.material-symbols-outlined)');
+        if (areAllChecked) {
+          icon.textContent = 'done_all';
+          text.textContent = 'Selecionar Todas';
+        } else {
+          icon.textContent = 'remove_done';
+          text.textContent = 'Desmarcar Todas';
+        }
+    });
+  
+    startAnalysisBtn.addEventListener('click', () => {
+      const selectedCheckboxes = folderList.querySelectorAll('input[type="checkbox"]:checked');
+      if (selectedCheckboxes.length === 0) {
+        showNotification('Selecione pelo menos uma pasta para analisar.', 'warn');
+        return;
+      }
+  
+      startAnalysisBtn.disabled = true;
+      startAnalysisBtn.classList.add('is-loading');
+  
+      // Dicionário de frases expandido
+      const phrases = [
+        'Analisando com IA...', 
+        'Consultando oráculos de silício...',
+        'Alinhando matrizes de dados...',
+        'Verificando a integridade dos pixels...',
+        'Usando todo o poder da IA...', 
+        'Calibrando os algoritmos...',
+        'Aguarde, a mágica está acontecendo...',
+        'Análise profunda...'
+      ];
+      let phraseIndex = 0;
+      const phraseElement = startAnalysisBtn.querySelector('.loading-phrases');
+      
+      // Limpa o intervalo anterior, se existir
+      if (phraseInterval) clearInterval(phraseInterval);
+  
+      // Lógica de animação de texto aprimorada
+      const cyclePhrases = () => {
+        // 1. Esmaecer para sair
+        phraseElement.style.opacity = '0';
+        phraseElement.style.transform = 'translateY(8px)';
+  
+        setTimeout(() => {
+          // 2. Trocar o texto
+          phraseIndex = (phraseIndex + 1) % phrases.length;
+          phraseElement.textContent = phrases[phraseIndex];
+          
+          // 3. Esmaecer para entrar
+          phraseElement.style.opacity = '1';
+          phraseElement.style.transform = 'translateY(0)';
+        }, 450); // Deve corresponder à duração da transição do CSS
+      };
+      
+      // Inicia o ciclo
+      phraseElement.textContent = phrases[0];
+      phraseInterval = setInterval(cyclePhrases, 2500); // Intervalo entre as frases
+  
+      analysisQueue = Array.from(selectedCheckboxes).map(cb => ({
+        id: cb.dataset.id,
+        name: cb.dataset.name,
+        status: cb.dataset.status,
+        equipmentType: cb.dataset.type,
+        analysisData: null,
+        imageData: null
+      }));
+      
+      // Initialize progress bar
+      updateProgressBar();
+      
+      google.script.run
+          .withSuccessHandler(response => {
+              if (response && !response.error && response.url) {
+                  openSheetBtn.disabled = false;
+                  openSheetBtn.dataset.url = response.url;
+              } else {
+                  console.error("Não foi possível obter a URL da planilha.");
+                  showNotification("Não foi possível encontrar a planilha de relatório.", "warn");
+              }
+              startProcessingQueue();
+          })
+          .withFailureHandler(err => {
+              console.error("Erro ao buscar URL da planilha:", err);
+              showNotification("Erro ao tentar localizar a planilha de relatório.", "warn");
+              startAnalysisBtn.disabled = false;
+              startAnalysisBtn.classList.remove('is-loading');
+              clearInterval(phraseInterval);
+          })
+          .getReportSheetUrl(rootFolderId);
+    });
+  
+    // ==================== LÓGICA DA FILA E ANÁLISE ====================
+    function startProcessingQueue() {
+      renderSidebar();
+      prefetchExistingData();
+      fetchAndDisplayFolder(0, true);
+    }
+  
+    function prefetchExistingData() {
+      analysisQueue.forEach((item, index) => {
+        if ((item.status === 'analyzed' || item.status === 'reviewed') && !item.analysisData) {
+          google.script.run
+              .withSuccessHandler((result) => onDataFetched(result, index, false))
+              .withFailureHandler((error) => onDataFetchFailed(error, index))
+              .getFolderDataBundle(item.id);
+        }
+      });
+    }
+  
+    function enqueueNextAiAnalysisJobs(startIndex) {
+      const start = startIndex + 1;
+      const end = Math.min(analysisQueue.length, start + PREFETCH_AI_WINDOW);
+      for (let i = start; i < end; i++) {
+          if (processingLock.size >= MAX_CONCURRENT_AI_JOBS) break;
+          const item = analysisQueue[i];
+          if (item.status === 'pending' && !processingLock.has(item.id)) {
+              console.log(`Enfileirando análise de IA para: ${item.name}`);
+              processFolderInBackground(i, true);
+          }
+      }
+    }
+  
+    function processFolderInBackground(index, isAutoEnqueued = false) {
+        const item = analysisQueue[index];
+        if (!item || processingLock.has(item.id) || item.status !== 'pending') return;
+        if (processingLock.size >= MAX_CONCURRENT_AI_JOBS) {
+            if (!isAutoEnqueued) showNotification('Aguarde a conclusão das análises em andamento para iniciar uma nova.', 'warn');
+            return;
+        }
+        if (!isAutoEnqueued) {
+          setTimeout(() => {
+            showNotification(`Análise de "${item.name}" iniciada em segundo plano.`, 'info');
+          }, 500);
+        } else {
+          setTimeout(() => {
+            showNotification(`Análise de "${item.name}" iniciada pela IA...`, 'info');
+          }, 500);
+        }
+        item.status = 'loading';
+        renderSidebar();
+        processingLock.add(item.id);
         google.script.run
             .withSuccessHandler((result) => onDataFetched(result, index, false))
             .withFailureHandler((error) => onDataFetchFailed(error, index))
             .getFolderDataBundle(item.id);
-      }
-    });
-  }
-
-  function enqueueNextAiAnalysisJobs(startIndex) {
-    const start = startIndex + 1;
-    const end = Math.min(analysisQueue.length, start + PREFETCH_AI_WINDOW);
-    for (let i = start; i < end; i++) {
-        if (processingLock.size >= MAX_CONCURRENT_AI_JOBS) break;
-        const item = analysisQueue[i];
-        if (item.status === 'pending' && !processingLock.has(item.id)) {
-            console.log(`Enfileirando análise de IA para: ${item.name}`);
-            processFolderInBackground(i, true);
-        }
     }
-  }
-
-  function processFolderInBackground(index, isAutoEnqueued = false) {
-      const item = analysisQueue[index];
-      if (!item || processingLock.has(item.id) || item.status !== 'pending') return;
-      if (processingLock.size >= MAX_CONCURRENT_AI_JOBS) {
-          if (!isAutoEnqueued) showNotification('Aguarde a conclusão das análises em andamento para iniciar uma nova.', 'warn');
+  
+    function fetchAndDisplayFolder(index, isInitialLoad = false) {
+      const itemToLoad = analysisQueue[index];
+      if (!itemToLoad) return;
+      if (processingLock.has(itemToLoad.id) && itemToLoad.status === 'loading') {
+        showNotification(`Aguarde, os dados de "${itemToLoad.name}" já estão sendo carregados.`, 'info');
+        return;
+      }
+      clearTimeout(saveTimeout);
+      if (!isInitialLoad && currentAnalysisIndex > -1 && currentAnalysisIndex < analysisQueue.length) {
+        const prevItem = analysisQueue[currentAnalysisIndex];
+        if (prevItem && prevItem.analysisData && prevItem.status !== 'reviewed') {
+          saveCurrentAnalysis(false, currentAnalysisIndex);
+        }
+      }
+      if (currentAnalysisIndex !== index) accordionState = {};
+      currentAnalysisIndex = index;
+      renderSidebar();
+      currentFolderName.textContent = itemToLoad.name;
+      if (itemToLoad.analysisData && itemToLoad.imageData) {
+          renderUI(index, false);
+          enqueueNextAiAnalysisJobs(currentAnalysisIndex);
           return;
       }
-      if (!isAutoEnqueued) {
-        setTimeout(() => {
-          showNotification(`Análise de "${item.name}" iniciada em segundo plano.`, 'info');
-        }, 500);
-      } else {
-        setTimeout(() => {
-          showNotification(`Análise de "${item.name}" iniciada pela IA...`, 'info');
-        }, 500);
+      
+      if (!isInitialLoad) {
+        imageStack.innerHTML = '<div class="mini-spinner"></div>';
+        analysisDetails.innerHTML = '';
       }
-      item.status = 'loading';
+  
+      itemToLoad.status = 'loading';
       renderSidebar();
-      processingLock.add(item.id);
+      processingLock.add(itemToLoad.id);
       google.script.run
-          .withSuccessHandler((result) => onDataFetched(result, index, false))
-          .withFailureHandler((error) => onDataFetchFailed(error, index))
-          .getFolderDataBundle(item.id);
-  }
-
-  function fetchAndDisplayFolder(index, isInitialLoad = false) {
-    const itemToLoad = analysisQueue[index];
-    if (!itemToLoad) return;
-    if (processingLock.has(itemToLoad.id) && itemToLoad.status === 'loading') {
-      showNotification(`Aguarde, os dados de "${itemToLoad.name}" já estão sendo carregados.`, 'info');
-      return;
+        .withSuccessHandler((result) => onDataFetched(result, index, true, isInitialLoad))
+        .withFailureHandler((error) => onDataFetchFailed(error, index))
+        .getFolderDataBundle(itemToLoad.id);
     }
-    clearTimeout(saveTimeout);
-    if (!isInitialLoad && currentAnalysisIndex > -1 && currentAnalysisIndex < analysisQueue.length) {
-      const prevItem = analysisQueue[currentAnalysisIndex];
-      if (prevItem && prevItem.analysisData && prevItem.status !== 'reviewed') {
-        saveCurrentAnalysis(false, currentAnalysisIndex);
+  
+    function onDataFetched(result, index, shouldRender, isInitialLoad = false) {
+      const item = analysisQueue[index];
+      if (item) processingLock.delete(item.id);
+      try {
+          const bundle = JSON.parse(result);
+          if (bundle.analysisData.error) throw new Error(bundle.analysisData.message);
+          item.analysisData = bundle.analysisData;
+          item.imageData = bundle.imageData;
+          const source = item.analysisData.source;
+          if (source === 'final') {
+              item.status = 'reviewed';
+          } else if (source === 'draft' || source === 'new') {
+              item.status = 'analyzed';
+          }
+          if (item.analysisData.source === 'new') {
+              const dataToSave = { ...item.analysisData };
+              delete dataToSave.source;
+              google.script.run
+                  .withSuccessHandler(res => console.log("Rascunho inicial salvo:", item.name, res.message))
+                  .withFailureHandler(err => console.error("Erro ao salvar rascunho inicial:", err))
+                  .finalizeAndSave(item.id, rootFolderId, JSON.stringify(dataToSave), false);
+          }
+  
+          if (isInitialLoad && index === 0) {
+              clearInterval(phraseInterval);
+              const transitionOverlay = document.getElementById('magic-transition-overlay');
+              transitionOverlay.classList.add('visible');
+              
+              setTimeout(() => {
+                switchScreen(mainScreen);
+                renderUI(index, true);
+                
+                transitionOverlay.classList.add('hiding');
+                transitionOverlay.addEventListener('animationend', () => {
+                  transitionOverlay.classList.remove('visible', 'hiding');
+                  startAnalysisBtn.disabled = false;
+                  startAnalysisBtn.classList.remove('is-loading');
+                }, { once: true });
+  
+              }, 1000);
+          } else if (shouldRender) {
+              renderUI(index, true);
+          }
+  
+          if (item.analysisData.source === 'new') {
+            setTimeout(() => {
+              showNotification(`Análise de "${item.name}" foi concluída pela IA.`, 'success');
+            }, 500)
+          }
+          renderSidebar();
+          if (shouldRender || index === currentAnalysisIndex) {
+              enqueueNextAiAnalysisJobs(index);
+          }
+      } catch (e) {
+          onDataFetchFailed({ message: e.message || 'Erro ao interpretar resposta do servidor.'}, index);
       }
     }
-    if (currentAnalysisIndex !== index) accordionState = {};
-    currentAnalysisIndex = index;
-    renderSidebar();
-    currentFolderName.textContent = itemToLoad.name;
-    if (itemToLoad.analysisData && itemToLoad.imageData) {
-        renderUI(index, false);
-        enqueueNextAiAnalysisJobs(currentAnalysisIndex);
-        return;
-    }
-    
-    if (!isInitialLoad) {
-      imageStack.innerHTML = '<div class="mini-spinner"></div>';
-      analysisDetails.innerHTML = '';
-    }
-
-    itemToLoad.status = 'loading';
-    renderSidebar();
-    processingLock.add(itemToLoad.id);
-    google.script.run
-      .withSuccessHandler((result) => onDataFetched(result, index, true, isInitialLoad))
-      .withFailureHandler((error) => onDataFetchFailed(error, index))
-      .getFolderDataBundle(itemToLoad.id);
-  }
-
-  function onDataFetched(result, index, shouldRender, isInitialLoad = false) {
-    const item = analysisQueue[index];
-    if (item) processingLock.delete(item.id);
-    try {
-        const bundle = JSON.parse(result);
-        if (bundle.analysisData.error) throw new Error(bundle.analysisData.message);
-        item.analysisData = bundle.analysisData;
-        item.imageData = bundle.imageData;
-        const source = item.analysisData.source;
-        if (source === 'final') {
-            item.status = 'reviewed';
-        } else if (source === 'draft' || source === 'new') {
-            item.status = 'analyzed';
-        }
-        if (item.analysisData.source === 'new') {
-            const dataToSave = { ...item.analysisData };
-            delete dataToSave.source;
-            google.script.run
-                .withSuccessHandler(res => console.log("Rascunho inicial salvo:", item.name, res.message))
-                .withFailureHandler(err => console.error("Erro ao salvar rascunho inicial:", err))
-                .finalizeAndSave(item.id, rootFolderId, JSON.stringify(dataToSave), false);
-        }
-
-        if (isInitialLoad && index === 0) {
-            clearInterval(phraseInterval);
-            const transitionOverlay = document.getElementById('magic-transition-overlay');
-            transitionOverlay.classList.add('visible');
-            
-            setTimeout(() => {
-              switchScreen(mainScreen);
-              renderUI(index, true);
-              
-              transitionOverlay.classList.add('hiding');
-              transitionOverlay.addEventListener('animationend', () => {
-                transitionOverlay.classList.remove('visible', 'hiding');
-                startAnalysisBtn.disabled = false;
-                startAnalysisBtn.classList.remove('is-loading');
-              }, { once: true });
-
-            }, 1000);
-        } else if (shouldRender) {
-            renderUI(index, true);
-        }
-
-        if (item.analysisData.source === 'new') {
-          setTimeout(() => {
-            showNotification(`Análise de "${item.name}" foi concluída pela IA.`, 'success');
-          }, 500)
+  
+    function onDataFetchFailed(error, index) {
+        const item = analysisQueue[index];
+        if (item) {
+          processingLock.delete(item.id);
+          item.status = 'error';
+          item.analysisData = { error: true, message: error.message || 'Falha na análise.' };
+          if (index === currentAnalysisIndex) {
+              renderUI(index);
+          }
         }
         renderSidebar();
-        if (shouldRender || index === currentAnalysisIndex) {
-            enqueueNextAiAnalysisJobs(index);
-        }
-    } catch (e) {
-        onDataFetchFailed({ message: e.message || 'Erro ao interpretar resposta do servidor.'}, index);
     }
-  }
-
-  function onDataFetchFailed(error, index) {
-      const item = analysisQueue[index];
-      if (item) {
-        processingLock.delete(item.id);
-        item.status = 'error';
-        item.analysisData = { error: true, message: error.message || 'Falha na análise.' };
-        if (index === currentAnalysisIndex) {
-            renderUI(index);
+  
+    function renderUI(index, isFirstRender = false) {
+        renderAnalysisData(index, isFirstRender);
+    }
+  
+    function findNextReadyFolder() {
+        if (currentAnalysisIndex >= analysisQueue.length - 1) {
+            showNotification("Você chegou ao fim da fila de análise!", 'success');
+            return null;
         }
-      }
-      renderSidebar();
-  }
+        for (let i = currentAnalysisIndex + 1; i < analysisQueue.length; i++) {
+            if (analysisQueue[i].status === 'analyzed' || analysisQueue[i].status === 'reviewed') {
+                return i;
+            }
+        }
+        showNotification('Aguarde o processamento do próximo endereço. Você será notificado.', 'warn');
+        return null;
+    }
+  
+    nextFolderBtn.addEventListener('click', () => {
+        if (currentAnalysisIndex === -1) return;
+        saveCurrentAnalysis(true, currentAnalysisIndex);
+        analysisQueue[currentAnalysisIndex].status = 'reviewed';
+        renderSidebar();
+        updateProgressBar(); // Ensure progress is updated immediately
+        const nextIndexToShow = findNextReadyFolder();
+        if (nextIndexToShow !== null) {
+            fetchAndDisplayFolder(nextIndexToShow);
+        }
+        // Coach: after the first advance, remind about the CTA
+        try { userSignals && (userSignals.advancedFolder = (userSignals.advancedFolder||0) + 1); } catch(_) {}
+        // try { maybeCoach && maybeCoach('conclude', userSignals.advancedFolder === 1); } catch(_) {}
 
-  function renderUI(index, isFirstRender = false) {
-      renderAnalysisData(index, isFirstRender);
-  }
-
-  function findNextReadyFolder() {
-      if (currentAnalysisIndex >= analysisQueue.length - 1) {
-          showNotification("Você chegou ao fim da fila de análise!", 'success');
-          return null;
-      }
-      for (let i = currentAnalysisIndex + 1; i < analysisQueue.length; i++) {
-          if (analysisQueue[i].status === 'analyzed' || analysisQueue[i].status === 'reviewed') {
-              return i;
+        // Personalized encouragement messages
+        try {
+          const advancedTimes = userSignals.advancedFolder || 0;
+          if (advancedTimes === 1) {
+            // hintsCatalog.encouragement1 = { icon: 'sentiment_satisfied_alt', text: 'Você já está profissional! Vamos ver você fazer um sozinho. 😄' };
+            // showCoachHint('encouragement1');
+          } else if (advancedTimes === 2) {
+            // hintsCatalog.encouragement2 = { icon: 'thumb_up', text: 'Mandou bem no segundo! Bom trabalho e boa análise! 👍' };
+            // showCoachHint('encouragement2');
           }
-      }
-      showNotification('Aguarde o processamento do próximo endereço. Você será notificado.', 'warn');
-      return null;
-  }
-
-  nextFolderBtn.addEventListener('click', () => {
-      if (currentAnalysisIndex === -1) return;
-      saveCurrentAnalysis(true, currentAnalysisIndex);
-      analysisQueue[currentAnalysisIndex].status = 'reviewed';
-      renderSidebar();
-      const nextIndexToShow = findNextReadyFolder();
-      if (nextIndexToShow !== null) {
-          fetchAndDisplayFolder(nextIndexToShow);
-      }
-  });
-
-  function saveCurrentAnalysis(isFinal, indexToSave) {
-    const itemIndex = (indexToSave !== undefined) ? indexToSave : currentAnalysisIndex;
-    if (itemIndex < 0 || itemIndex >= analysisQueue.length) return;
-    const item = analysisQueue[itemIndex];
-    if (!item || !item.analysisData || item.analysisData.error) {
-      console.log("Salvamento cancelado: item inválido, sem dados ou com erro.", item);
-      return;
-    }
-    if (itemIndex === currentAnalysisIndex) {
-      updateDataObjectFromDOM();
-    }
-    const dataToSave = { ...item.analysisData };
-    delete dataToSave.source;
-    google.script.run
-        .withSuccessHandler(res => {
-            const saveType = isFinal ? "FINAL" : "RASCUNHO";
-            console.log(`Análise [${saveType}] para '${item.name}': ${res.message}`);
-            if (res.success && isFinal) {
-               // showNotification(`Análise de '${item.name}' concluída e relatório atualizado!`, 'success');
-            } else if (!res.success) {
-               showNotification(`Falha no salvamento: ${res.message}`, 'warn');
-            }
-        })
-        .withFailureHandler(err => {
-            console.error(`Erro ao salvar análise para '${item.name}':`, err);
-            showNotification(`Falha ao salvar a análise de '${item.name}'.`, 'warn');
-        })
-        .finalizeAndSave(item.id, rootFolderId, JSON.stringify(dataToSave), isFinal);
-  }
-
-  // ==================== RENDERIZAÇÃO E MANIPULAÇÃO DO DOM ====================
-  function renderSidebar() {
-    const lastScrollTop = queueList.scrollTop;
-    queueList.innerHTML = '';
-    analysisQueue.forEach((item, index) => {
-        const li = document.createElement('li');
-        li.dataset.index = index;
-        const dot = document.createElement('span');
-        dot.className = `status-dot status-${item.status}`;
-        const spanName = document.createElement('span');
-        spanName.className = 'item-name';
-        spanName.textContent = item.name;
-        li.appendChild(dot);
-        li.appendChild(spanName);
-        li.addEventListener('click', () => {
-            if (index === currentAnalysisIndex) return;
-            const clickedItem = analysisQueue[index];
-            if (clickedItem.status === 'loading') {
-                showNotification(`Aguarde, a análise de "${clickedItem.name}" está em andamento.`, 'info');
-                return;
-            }
-            if (clickedItem.status === 'pending' && !clickedItem.analysisData) {
-                showNotification(`Esta pasta ainda não foi pré-processada. Tentando iniciar agora...`, 'info');
-                processFolderInBackground(index);
-                return;
-            }
-            if (clickedItem.status === 'error' || (clickedItem.analysisData && clickedItem.analysisData.error)) {
-                const errorMessage = (clickedItem.analysisData && clickedItem.analysisData.message) ? clickedItem.analysisData.message : 'Não foi possível carregar os dados desta pasta.';
-                showNotification(`Erro ao carregar: ${errorMessage}`, 'warn');
-                return;
-            }
-            if (!clickedItem.imageData || clickedItem.imageData.length === 0) {
-                showNotification(`Não é possível analisar: Nenhuma imagem foi encontrada na pasta "${clickedItem.name}".`, 'warn');
-                clickedItem.status = 'error';
-                clickedItem.analysisData = { error: true, message: `Nenhuma imagem encontrada na pasta.` };
-                renderSidebar();
-                return;
-            }
-            fetchAndDisplayFolder(index);
-        });
-        if (index === currentAnalysisIndex) {
-            li.classList.add('active');
-        }
-        queueList.appendChild(li);
+        } catch(_) {}
+        try { recordUserAction('conclude_and_advance'); } catch(_) {}
     });
-    queueList.scrollTop = lastScrollTop;
-  }
-
-  const renderCardGroup = (title, diagnostico, typeClass, category) => {
-      const cards = diagnostico[category] || [];
-      let isCollapsed = accordionState[title] === true;
-      let groupHtml = `<div class="card-group">
-                            <h3 class="card-group-title ${isCollapsed ? 'collapsed' : ''}">${title}</h3>
-                            <div class="card-group-content ${isCollapsed ? 'collapsed' : ''}">`;
-      if (cards.length === 0) {
-          const houveAntes = diagnostico.ocorrencias_identificadas_antes?.length > 0;
-          if (category === 'servicos_executados' && houveAntes) {
-              groupHtml += `<div class="empty-state-message">Nenhum serviço foi executado para as ocorrências identificadas.</div>`;
-          } else if (category === 'pendencias_remanescentes_depois' && houveAntes) {
-              groupHtml += `<div class="empty-state-message">Todos os serviços foram executados com sucesso. Nenhuma pendência remanescente.</div>`;
-          } else if (category === 'ocorrencias_identificadas_antes' && !houveAntes) {
-              groupHtml += `<div class="empty-state-message">Nenhuma ocorrência foi identificada pela IA.</div>`;
-          }
-      } else {
-          cards.forEach((occ) => {
-              const itemName = occ.item || occ.item_resolvido;
-              let actionButtonsHtml = '';
-              if (category === 'ocorrencias_identificadas_antes') {
-                  actionButtonsHtml = `<button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
-              } else if (category === 'servicos_executados') {
-                  actionButtonsHtml = `<button class="action-btn secondary" data-action="move-to-pending"><span class="material-symbols-outlined">report_problem</span> Serviço Não Executado</button>
-                                       <button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
-              } else if (category === 'pendencias_remanescentes_depois') {
-                  actionButtonsHtml = `<button class="action-btn secondary" data-action="move-to-executed"><span class="material-symbols-outlined">task_alt</span> Ocorrência Corrigida</button>
-                                       <button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
+  
+    function saveCurrentAnalysis(isFinal, indexToSave) {
+      const itemIndex = (indexToSave !== undefined) ? indexToSave : currentAnalysisIndex;
+      if (itemIndex < 0 || itemIndex >= analysisQueue.length) return;
+      const item = analysisQueue[itemIndex];
+      if (!item || !item.analysisData || item.analysisData.error) {
+        console.log("Salvamento cancelado: item inválido, sem dados ou com erro.", item);
+        return;
+      }
+      if (itemIndex === currentAnalysisIndex) {
+        updateDataObjectFromDOM();
+      }
+      const dataToSave = { ...item.analysisData };
+      delete dataToSave.source;
+      google.script.run
+          .withSuccessHandler(res => {
+              const saveType = isFinal ? "FINAL" : "RASCUNHO";
+              console.log(`Análise [${saveType}] para '${item.name}': ${res.message}`);
+              if (res.success && isFinal) {
+                 // showNotification(`Análise de '${item.name}' concluída e relatório atualizado!`, 'success');
+              } else if (!res.success) {
+                 showNotification(`Falha no salvamento: ${res.message}`, 'warn');
               }
-              groupHtml += `<div class="card ${typeClass}" data-item-name="${itemName}" data-id="${occ._uniqueId}">
-                              <div class="card-actions">${actionButtonsHtml}</div>
-                              <div class="card-header">${itemName}${occ.tipo ? `<span class="type">${occ.tipo}</span>` : ''}</div>
-                              <p>${occ.descricao || occ.acao_realizada || ''}</p>
-                          </div>`;
+          })
+          .withFailureHandler(err => {
+              console.error(`Erro ao salvar análise para '${item.name}':`, err);
+              showNotification(`Falha ao salvar a análise de '${item.name}'.`, 'warn');
+          })
+          .finalizeAndSave(item.id, rootFolderId, JSON.stringify(dataToSave), isFinal);
+    }
+  
+    // ==================== RENDERIZAÇÃO E MANIPULAÇÃO DO DOM ====================
+    function renderSidebar() {
+      const lastScrollTop = queueList.scrollTop;
+      queueList.innerHTML = '';
+      analysisQueue.forEach((item, index) => {
+          const li = document.createElement('li');
+          li.dataset.index = index;
+          const dot = document.createElement('span');
+          dot.className = `status-dot status-${item.status}`;
+          const spanName = document.createElement('span');
+          spanName.className = 'item-name';
+          spanName.textContent = item.name;
+          li.appendChild(dot);
+          li.appendChild(spanName);
+          li.addEventListener('click', () => {
+              if (index === currentAnalysisIndex) return;
+              const clickedItem = analysisQueue[index];
+              if (clickedItem.status === 'loading') {
+                  showNotification(`Aguarde, a análise de "${clickedItem.name}" está em andamento.`, 'info');
+                  return;
+              }
+              if (clickedItem.status === 'pending' && !clickedItem.analysisData) {
+                  showNotification(`Esta pasta ainda não foi pré-processada. Tentando iniciar agora...`, 'info');
+                  processFolderInBackground(index);
+                  return;
+              }
+              if (clickedItem.status === 'error' || (clickedItem.analysisData && clickedItem.analysisData.error)) {
+                  const errorMessage = (clickedItem.analysisData && clickedItem.analysisData.message) ? clickedItem.analysisData.message : 'Não foi possível carregar os dados desta pasta.';
+                  showNotification(`Erro ao carregar: ${errorMessage}`, 'warn');
+                  return;
+              }
+              if (!clickedItem.imageData || clickedItem.imageData.length === 0) {
+                  showNotification(`Não é possível analisar: Nenhuma imagem foi encontrada na pasta "${clickedItem.name}".`, 'warn');
+                  clickedItem.status = 'error';
+                  clickedItem.analysisData = { error: true, message: `Nenhuma imagem encontrada na pasta.` };
+                  renderSidebar();
+                  return;
+              }
+              fetchAndDisplayFolder(index);
           });
-      }
-      groupHtml += `</div></div>`;
-      return groupHtml;
-  };
-
-  function addUniqueIdsToOccurrences(diagnostico) {
-    if (!diagnostico) return;
-    let idCounter = 0;
-    ['ocorrencias_identificadas_antes', 'servicos_executados', 'pendencias_remanescentes_depois'].forEach(category => {
-        if (diagnostico[category]) {
-            diagnostico[category].forEach(occ => {
-                if (!occ._uniqueId) {
-                    occ._uniqueId = `occ-${Date.now()}-${idCounter++}`;
+          if (index === currentAnalysisIndex) {
+              li.classList.add('active');
+          }
+          queueList.appendChild(li);
+      });
+      queueList.scrollTop = lastScrollTop;
+    }
+  
+    const renderCardGroup = (title, diagnostico, typeClass, category) => {
+        const cards = diagnostico[category] || [];
+        let isCollapsed = accordionState[title] === true;
+        let groupHtml = `<div class="card-group">
+                              <h3 class="card-group-title ${isCollapsed ? 'collapsed' : ''}">${title}</h3>
+                              <div class="card-group-content ${isCollapsed ? 'collapsed' : ''}">`;
+        if (cards.length === 0) {
+            const houveAntes = diagnostico.ocorrencias_identificadas_antes?.length > 0;
+            if (category === 'servicos_executados' && houveAntes) {
+                groupHtml += `<div class="empty-state-message">Nenhum serviço foi executado para as ocorrências identificadas.</div>`;
+            } else if (category === 'pendencias_remanescentes_depois' && houveAntes) {
+                groupHtml += `<div class="empty-state-message">Todos os serviços foram executados com sucesso. Nenhuma pendência remanescente.</div>`;
+            } else if (category === 'ocorrencias_identificadas_antes' && !houveAntes) {
+                groupHtml += `<div class="empty-state-message">Nenhuma ocorrência foi identificada pela IA.</div>`;
+            }
+        } else {
+            cards.forEach((occ) => {
+                const itemName = occ.item || occ.item_resolvido;
+                let actionButtonsHtml = '';
+                if (category === 'ocorrencias_identificadas_antes') {
+                    actionButtonsHtml = `<button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
+                } else if (category === 'servicos_executados') {
+                    actionButtonsHtml = `<button class="action-btn secondary" data-action="move-to-pending"><span class="material-symbols-outlined">report_problem</span> Serviço Não Executado</button>
+                                         <button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
+                } else if (category === 'pendencias_remanescentes_depois') {
+                    actionButtonsHtml = `<button class="action-btn secondary" data-action="move-to-executed"><span class="material-symbols-outlined">task_alt</span> Ocorrência Corrigida</button>
+                                         <button class="action-btn" data-action="delete" style="color: var(--primary-color);"><span class="material-symbols-outlined">delete</span> Ocorrência Não Existe</button>`;
                 }
+                groupHtml += `<div class="card ${typeClass}" data-item-name="${itemName}" data-id="${occ._uniqueId}">
+                                <div class="card-actions">${actionButtonsHtml}</div>
+                                <div class="card-header">${itemName}${occ.tipo ? `<span class="type">${occ.tipo}</span>` : ''}</div>
+                                <p>${occ.descricao || occ.acao_realizada || ''}</p>
+                            </div>`;
             });
         }
-    });
-  }
-
-  function renderAnalysisData(index, isFirstRender = false) {
-      if (!isFirstRender) saveAccordionState();
-      const item = analysisQueue[index];
-      imageStack.innerHTML = '<div class="mini-spinner"></div>';
-      analysisDetails.innerHTML = '';
-      imageStack.className = 'image-stack';
-      collapseGridBtn.classList.add('hidden');
-
-      if (item.imageData) {
-        const imageLoadPromise = renderImages(item.imageData);
-
-        imageLoadPromise.then(() => {
-          if (imageStack.classList.contains('grid-view')) {
-            applyMasonryLayout();
-          }
-        });
-      } else {
-        renderImages(null);
-      }
-
-      const data = item.analysisData;
-      if (!data || data.error) {
-          analysisDetails.innerHTML = `<div class="card card-pendency"><div class="card-header">Erro na Análise</div><p>${data ? data.message : 'Dados não disponíveis.'}</p></div>`;
-          hideSpinner();
-          return;
-      }
-
-      if(data.diagnostico_manutencao) {
-        addUniqueIdsToOccurrences(data.diagnostico_manutencao);
-      }
-
-      nextFolderBtn.querySelector('.btn-text').textContent = (data.source === 'final' || item.status === 'reviewed') ? 'Atualizar e Avançar' : 'Concluir e Avançar';
-      let html = '';
-      if(data.analise_temporal || data.quantidade_equipamentos_identificados) {
-          html += `<div class="card card-info">
-                      <div class="card-header"><h3>Informações Sobre a Atividade</h3></div>
-                      <body><strong>Equipamentos Identificados </strong><p> ${data.quantidade_equipamentos_identificados || 'N/A'}</p></body>
-                      <body><strong>Duração do Serviço </strong><p> ${data.analise_temporal?.duracao_servico_minutos || 'N/A'} minutos</p></body>
-                      <body><strong>Consistência </strong><p> ${data.analise_temporal?.consistencia_temporal || 'N/A'}</p></body>
-                  </div>`;
-      }
-      const { diagnostico_manutencao, conclusao_auditoria } = data;
-      if (diagnostico_manutencao) {
-          html += renderCardGroup('Ocorrências (Antes)', diagnostico_manutencao, 'card-before', 'ocorrencias_identificadas_antes');
-          html += renderCardGroup('Serviços Executados', diagnostico_manutencao, 'card-executed', 'servicos_executados');
-          html += renderCardGroup('Pendências Remanescentes', diagnostico_manutencao, 'card-pendency', 'pendencias_remanescentes_depois');
-      }
-      html += `<div class="card card-add"><p><span class="material-symbols-outlined">add_circle</span> Adicionar Ocorrência</p></div>`;
-      if(conclusao_auditoria !== undefined) {
-          html += `<div id="conclusion-card" class="card">
-                      <div class="conclusion-header">
-                          <h3 class="card-group-title">Conclusão da Auditoria</h3>
-                          <button id="gemini-conclusion-btn" title="Gerar conclusão com IA">
-                              <img src="https://upload.wikimedia.org/wikipedia/commons/8/8f/Google-gemini-icon.svg" alt="Gemini Icon"/>
-                              Sugerir
-                          </button>
-                      </div>
-                      <div class="textarea-wrapper">
-                          <textarea placeholder="Escreva uma resenha sobre a atividade....">${conclusao_auditoria}</textarea>
-                          <div class="gemini-magic-overlay"></div>
-                      </div>
-                  </div>`;
-      }
-      analysisDetails.innerHTML = html;
-      const conclusionTextarea = document.querySelector('#conclusion-card textarea');
-      autosizeTextarea(conclusionTextarea);
-      hideSpinner();
-  }
-
-  function applyMasonryLayout() {
-    const imageStack = document.getElementById('image-stack');
-    if (!imageStack.classList.contains('grid-view')) return;
-
-    const imageWrappers = imageStack.querySelectorAll('.image-wrapper');
-    if (imageWrappers.length === 0) return;
-
-    // Adicionando verificação de responsividade
-    if (window.innerWidth <= 992) {
-        // Em telas menores, removemos os estilos inline para que o CSS controle o layout
-        imageStack.style.height = '';
-        imageWrappers.forEach(wrapper => {
-            wrapper.style.position = '';
-            wrapper.style.left = '';
-            wrapper.style.top = '';
-            wrapper.style.width = '';
-        });
-        return; // Interrompe a execução do masonry
-    }
-
-    const numColumns = 3;
-    const gap = 16; 
-
-    const columnHeights = Array(numColumns).fill(0);
-    
-    const columnWidth = (imageStack.clientWidth - (gap * (numColumns - 1))) / numColumns;
-
-    imageWrappers.forEach(wrapper => {
-      wrapper.style.width = `${columnWidth}px`;
-
-      const minHeight = Math.min(...columnHeights);
-      const columnIndex = columnHeights.indexOf(minHeight);
-
-      const top = minHeight;
-      const left = columnIndex * (columnWidth + gap);
-
-      wrapper.style.left = `${left}px`;
-      wrapper.style.top = `${top}px`;
-
-      columnHeights[columnIndex] += wrapper.offsetHeight + gap;
-    });
-
-    const totalHeight = Math.max(...columnHeights);
-    imageStack.style.height = `${totalHeight}px`;
-  }
-
-  function renderImages(images) {
-      imageStack.innerHTML = '';
-      if (!images || images.length === 0) {
-          imageStack.innerHTML = '<p>Nenhuma imagem encontrada.</p>';
-          return Promise.resolve();
-      }
-
-      // Ordena as imagens pelo nome para garantir a ordem cronológica
-      images.sort((a, b) => a.name.localeCompare(b.name));
-
-      const imageLoadPromises = [];
-
-      images.forEach((img, i) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'image-wrapper';
-        wrapper.onclick = (e) => {
-            if (imageStack.classList.contains('grid-view')) {
-                e.stopPropagation();
-                openImageModal(i);
-            }
-        };
-        const imgEl = document.createElement('img');
-
-        const loadPromise = new Promise(resolve => {
-            imgEl.onload = resolve;
-            imgEl.onerror = resolve;
-            imgEl.src = img.data;
-            imgEl.alt = img.name;
-        });
-        imageLoadPromises.push(loadPromise);
-
-        wrapper.appendChild(imgEl);
-        imageStack.appendChild(wrapper);
-      });
-      
-      return Promise.all(imageLoadPromises); 
-  }
-
-  function updateDataObjectFromDOM() {
-    const item = analysisQueue[currentAnalysisIndex];
-    if (!item || !item.analysisData || !item.analysisData.error) return;
-    const conclusionTextarea = document.querySelector('#conclusion-card textarea');
-    if (conclusionTextarea) {
-        item.analysisData.conclusao_auditoria = conclusionTextarea.value;
-    }
-  }
-
-  let zoom = 1, isPanning = false, startX, startY, panX = 0, panY = 0;
-  function openImageModal(index) {
-      modalImageIndex = index;
-      showModalImage(modalImageIndex);
-      showModal('image-modal');
-      document.body.style.overflow = 'hidden';
-      document.addEventListener('keydown', handleKeyboardNav);
-  }
-  function closeImageModal() {
-      closeModal('image-modal');
-      document.body.style.overflow = 'auto';
-      document.removeEventListener('keydown', handleKeyboardNav);
-  }
-  function showModalImage(index) {
-      const images = analysisQueue[currentAnalysisIndex]?.imageData;
-      if (!images || !images[index]) return;
-      imageModalImg.src = images[index].data;
-      resetZoomAndPan();
-  }
-  function navigateModal(direction) {
-      const totalImages = analysisQueue[currentAnalysisIndex]?.imageData?.length || 0;
-      if (totalImages === 0) return;
-      modalImageIndex = (modalImageIndex + direction + totalImages) % totalImages;
-      showModalImage(modalImageIndex);
-  }
-  function handleKeyboardNav(e) {
-      if (e.key === 'ArrowRight') navigateModal(1);
-      if (e.key === 'ArrowLeft') navigateModal(-1);
-      if (e.key === 'Escape') closeImageModal();
-  }
-  function updateZoom(newZoom) {
-      zoom = Math.max(0.5, Math.min(newZoom, 5));
-      imageModalImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
-      zoomLevelSpan.textContent = `${Math.round(zoom * 100)}%`;
-  }
-  function resetZoomAndPan() {
-      zoom = 1; panX = 0; panY = 0;
-      updateZoom(1);
-  }
-  imageModalClose.onclick = closeImageModal;
-  imageModalPrev.onclick = (e) => { e.stopPropagation(); navigateModal(-1); };
-  imageModalNext.onclick = (e) => { e.stopPropagation(); navigateModal(1); };
-  zoomInBtn.onclick = () => updateZoom(zoom + 0.2);
-  zoomOutBtn.onclick = () => updateZoom(zoom - 0.2);
-  imageModalImg.addEventListener('wheel', (e) => { e.preventDefault(); updateZoom(zoom + (e.deltaY < 0 ? 0.1 : -0.1)); });
-  imageModalImg.addEventListener('mousedown', (e) => {
-      if (zoom > 1) { e.preventDefault(); isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; imageModalImg.classList.add('panning'); }
-  });
-  window.addEventListener('mouseup', () => { isPanning = false; imageModalImg.classList.remove('panning'); });
-  window.addEventListener('mousemove', (e) => {
-      if (isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; imageModalImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-  });
-
-  function handleGeminiConclusion(buttonEl) {
-    const item = analysisQueue[currentAnalysisIndex];
-    if (!item || !item.analysisData) {
-        showNotification('Dados da análise não encontrados.', 'warn');
-        return;
-    }
-    const conclusionCard = document.getElementById('conclusion-card');
-    const textarea = conclusionCard.querySelector('textarea');
-    const magicOverlay = conclusionCard.querySelector('.gemini-magic-overlay');
-    buttonEl.disabled = true;
-    magicOverlay.classList.add('active');
-    const diag = item.analysisData.diagnostico_manutencao || {};
-    const temporal = item.analysisData.analise_temporal || {};
-    const rascunhoParaIA = {
-        diagnostico_manutencao: {
-          houve_ocorrencia_previa: diag.houve_ocorrencia_previa,
-          ocorrencias_identificadas_antes: diag.ocorrencias_identificadas_antes,
-          servicos_executados: diag.servicos_executados,
-          pendencias_remanescentes_depois: diag.pendencias_remanescentes_depois
-        },
-        analise_temporal: {
-          duracao_servico_minutos: temporal.duracao_servico_minutos,
-          consistencia_temporal: temporal.consistencia_temporal
-        }
+        groupHtml += `</div></div>`;
+        return groupHtml;
     };
-    const onFinish = () => { buttonEl.disabled = false; magicOverlay.classList.remove('active'); };
-    google.script.run
-        .withSuccessHandler(novaConclusao => {
-            typeWriterEffect(textarea, novaConclusao, 4, () => {
-                item.analysisData.conclusao_auditoria = novaConclusao;
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => saveCurrentAnalysis(false, currentAnalysisIndex), 1000);
-                onFinish();
-            });
-        })
-        .withFailureHandler(error => { showNotification(`Erro da IA: ${error.message}`, 'warn'); onFinish(); })
-        .gerarConclusaoComGemma(JSON.stringify(rascunhoParaIA));
-  }
-
-  function undoAction(actionId) {
-    clearTimeout(saveTimeout);
-    const undoData = undoSnapshots.get(actionId);
-
-    if (undoData) {
-        clearTimeout(undoData.cleanupTimeoutId);
-        const item = analysisQueue[currentAnalysisIndex];
-        item.analysisData.diagnostico_manutencao = undoData.snapshot;
-        undoSnapshots.delete(actionId);
-
-        const isGridView = imageStack.classList.contains('grid-view');
-        renderAnalysisData(currentAnalysisIndex, false);
-        if (isGridView) {
-            imageStack.classList.add('grid-view');
-            collapseGridBtn.classList.remove('hidden');
-        }
-        saveCurrentAnalysis(false, currentAnalysisIndex);
-        showNotification("Ação desfeita.", 'info');
-    } else {
-      console.warn(`Não foi possível encontrar os dados para desfazer a ação: ${actionId}. O tempo para desfazer pode ter expirado.`);
-    }
-  }
-
-  function handleOccurrenceAction(action, itemName) {
-    const item = analysisQueue[currentAnalysisIndex];
-    if (!item || !item.analysisData || !item.analysisData.diagnostico_manutencao) return;
-
-    const snapshot = JSON.parse(JSON.stringify(item.analysisData.diagnostico_manutencao));
-    const actionId = `undo-${Date.now()}-${Math.random()}`;
-    const cleanupTimeoutId = setTimeout(() => { undoSnapshots.delete(actionId); }, 8000);
-    undoSnapshots.set(actionId, { snapshot, cleanupTimeoutId });
-
-    const diag = item.analysisData.diagnostico_manutencao;
-    const isGridView = imageStack.classList.contains('grid-view');
-    let notificationMessage = '';
-    if (!diag.ocorrencias_identificadas_antes) diag.ocorrencias_identificadas_antes = [];
-    if (!diag.servicos_executados) diag.servicos_executados = [];
-    if (!diag.pendencias_remanescentes_depois) diag.pendencias_remanescentes_depois = [];
-    if (!diag.ocorrencias_excluidas) diag.ocorrencias_excluidas = []; // Garantir que o array de excluídas exista
-
-    switch (action) {
-        case 'delete': {
-            let found = false;
-            let occurrenceToMove;
-            
-            const indexAntes = diag.ocorrencias_identificadas_antes.findIndex(o => o.item === itemName);
-            if (indexAntes > -1) {
-                occurrenceToMove = diag.ocorrencias_identificadas_antes.splice(indexAntes, 1)[0];
-                diag.ocorrencias_excluidas.push(occurrenceToMove);
-                found = true;
-            }
-
-            const indexExecutados = diag.servicos_executados.findIndex(o => o.item_resolvido === itemName);
-            if (indexExecutados > -1) {
-                occurrenceToMove = diag.servicos_executados.splice(indexExecutados, 1)[0];
-                diag.ocorrencias_excluidas.push({
-                    item: occurrenceToMove.item_resolvido,
-                    tipo: 'N/A',
-                    descricao: occurrenceToMove.acao_realizada
-                });
-                found = true;
-            }
-
-            const indexPendentes = diag.pendencias_remanescentes_depois.findIndex(o => o.item === itemName);
-            if (indexPendentes > -1) {
-                occurrenceToMove = diag.pendencias_remanescentes_depois.splice(indexPendentes, 1)[0];
-                diag.ocorrencias_excluidas.push(occurrenceToMove);
-                found = true;
-            }
-
-            if (found) {
-              notificationMessage = `Ocorrência '${itemName}' marcada como inexistente.`;
-            }
-            break;
-        }
-        case 'move-to-pending': {
-            const serviceIndex = diag.servicos_executados.findIndex(o => o.item_resolvido === itemName);
-            if (serviceIndex > -1) {
-                const originalOccurrence = snapshot.ocorrencias_identificadas_antes.find(o => o.item === itemName);
-                diag.servicos_executados.splice(serviceIndex, 1);
-                diag.pendencias_remanescentes_depois.push({
-                    item: itemName,
-                    tipo: originalOccurrence ? originalOccurrence.tipo : 'Preventiva',
-                    status: "Pendente",
-                    descricao: "O usuário definiu a ocorrência como ainda pendente."
-                });
-                notificationMessage = `'${itemName}' movida para pendências.`;
-            }
-            break;
-        }
-        case 'move-to-executed': {
-            const pendencyIndex = diag.pendencias_remanescentes_depois.findIndex(o => o.item === itemName);
-            if (pendencyIndex > -1) {
-                diag.pendencias_remanescentes_depois.splice(pendencyIndex, 1);
-                diag.servicos_executados.push({
-                    item_resolvido: itemName,
-                    acao_realizada: "O usuário definiu a ocorrência como executada."
-                });
-                notificationMessage = `'${itemName}' marcada como corrigida.`;
-            }
-            break;
-        }
-    }
-    renderAnalysisData(currentAnalysisIndex, false);
-    if (isGridView) {
-        imageStack.classList.add('grid-view');
-        collapseGridBtn.classList.remove('hidden');
-    }
-    if(notificationMessage) {
-      showNotification(notificationMessage, 'warn', { label: "Desfazer", callback: () => undoAction(actionId) });
-    }
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => {
-        saveCurrentAnalysis(false, currentAnalysisIndex);
-    }, 7100);
-  }
-
-  imageModal.addEventListener('click', function(event) {
-    const nonClosingElements = ['#image-modal-img', '.modal-nav', '#image-modal-close', '#image-modal-toolbar'];
-    if (!nonClosingElements.some(selector => event.target.closest(selector))) closeImageModal();
-  });
-  imageStackContainer.addEventListener('click', (e) => {
-      if (!imageStack.classList.contains('grid-view')) {
-          imageStack.classList.add('grid-view');
-          collapseGridBtn.classList.remove('hidden');
-
-          requestAnimationFrame(() => {
-            applyMasonryLayout();
-          });
-      }
-  });
-  collapseGridBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      imageStack.classList.remove('grid-view');
-      collapseGridBtn.classList.add('hidden');
-      
-      // Remove os estilos inline para que a animação de volta funcione
-      const imageWrappers = imageStack.querySelectorAll('.image-wrapper');
-      imageStack.style.height = '';
-      imageWrappers.forEach(wrapper => {
-          wrapper.style.position = '';
-          wrapper.style.left = '';
-          wrapper.style.top = '';
-          wrapper.style.width = '';
+  
+    function addUniqueIdsToOccurrences(diagnostico) {
+      if (!diagnostico) return;
+      let idCounter = 0;
+      ['ocorrencias_identificadas_antes', 'servicos_executados', 'pendencias_remanescentes_depois'].forEach(category => {
+          if (diagnostico[category]) {
+              diagnostico[category].forEach(occ => {
+                  if (!occ._uniqueId) {
+                      occ._uniqueId = `occ-${Date.now()}-${idCounter++}`;
+                  }
+              });
+          }
       });
-  });
-  analysisDetails.addEventListener('click', (e) => {
-      const geminiBtn = e.target.closest('#gemini-conclusion-btn');
-      if (geminiBtn) { e.stopPropagation(); handleGeminiConclusion(geminiBtn); return; }
-      const actionButton = e.target.closest('.action-btn[data-action]');
-      if (actionButton) {
-          e.stopPropagation();
-          const card = actionButton.closest('.card[data-item-name]');
-          if (card) handleOccurrenceAction(actionButton.dataset.action, card.dataset.itemName);
-          return;
-      }
-      const groupTitle = e.target.closest('.card-group-title');
-      if (groupTitle) {
-          groupTitle.classList.toggle('collapsed');
-          const content = groupTitle.nextElementSibling;
-          if (content?.classList.contains('card-group-content')) content.classList.toggle('collapsed');
-          return;
-      }
-      if (e.target.closest('.card-add')) { openAddOccurrenceModal(); return; }
-  });
-  analysisDetails.addEventListener('input', (e) => {
-    if (e.target.tagName === 'TEXTAREA') {
-        autosizeTextarea(e.target);
-        clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => saveCurrentAnalysis(false, currentAnalysisIndex), 1500);
     }
-  });
-
-  function openAddOccurrenceModal() {
-    addOccurrenceModalContainer.querySelectorAll('.category-toggle-btn').forEach((btn, index) => {
-      btn.classList.toggle('selected', index === 0);
-    });
-    
-    customSelect.classList.remove('open');
-    customSelectText.textContent = 'Selecione um item...';
-    customSelectText.classList.add('placeholder');
-    customSelect.dataset.value = '';
-    customSelectSearchInput.value = '';
-    customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('hidden'));
-
-    occurrenceDescriptionTextarea.value = '';
-    autosizeTextarea(occurrenceDescriptionTextarea);
-    showModal('add-occurrence-modal');
-  }
-  closeAddOccurrenceBtn.onclick = () => closeModal('add-occurrence-modal');
-  window.onclick = (event) => {
-    if (event.target == addOccurrenceModal) closeModal('add-occurrence-modal');
-  };
-
-  saveOccurrenceBtn.addEventListener('click', () => {
-      const category = addOccurrenceModalContainer.querySelector('.category-toggle-btn.selected')?.dataset.value || 'pendencias_remanescentes_depois';
-      const itemName = customSelect.dataset.value;
-      
-      if (!itemName) {
-        showNotification('Por favor, selecione um item da ocorrência.', 'warn');
-        return;
+  
+    function renderAnalysisData(index, isFirstRender = false) {
+        if (!isFirstRender) saveAccordionState();
+        const item = analysisQueue[index];
+        imageStack.innerHTML = '<div class="mini-spinner"></div>';
+        analysisDetails.innerHTML = '';
+        imageStack.className = 'image-stack';
+        collapseGridBtn.classList.add('hidden');
+  
+        if (item.imageData) {
+          const imageLoadPromise = renderImages(item.imageData);
+  
+          imageLoadPromise.then(() => {
+            if (imageStack.classList.contains('grid-view')) {
+              applyMasonryLayout();
+            }
+          });
+        } else {
+          renderImages(null);
+        }
+  
+        const data = item.analysisData;
+        if (!data || data.error) {
+            analysisDetails.innerHTML = `<div class="card card-pendency"><div class="card-header">Erro na Análise</div><p>${data ? data.message : 'Dados não disponíveis.'}</p></div>`;
+            hideSpinner();
+            return;
+        }
+  
+        if(data.diagnostico_manutencao) {
+          addUniqueIdsToOccurrences(data.diagnostico_manutencao);
+        }
+  
+        nextFolderBtn.querySelector('.btn-text').textContent = (data.source === 'final' || item.status === 'reviewed') ? 'Atualizar e Avançar' : 'Concluir e Avançar';
+        let html = '';
+        if(data.analise_temporal || data.quantidade_equipamentos_identificados) {
+            html += `<div class="card card-info">
+                        <div class="card-header"><h3>Informações Sobre a Atividade</h3></div>
+                        <body><strong>Equipamentos Identificados </strong><p> ${data.quantidade_equipamentos_identificados || 'N/A'}</p></body>
+                        <body><strong>Duração do Serviço </strong><p> ${data.analise_temporal?.duracao_servico_minutos || 'N/A'} minutos</p></body>
+                        <body><strong>Consistência </strong><p> ${data.analise_temporal?.consistencia_temporal || 'N/A'}</p></body>
+                    </div>`;
+        }
+        const { diagnostico_manutencao, conclusao_auditoria } = data;
+        if (diagnostico_manutencao) {
+            html += renderCardGroup('Ocorrências (Antes)', diagnostico_manutencao, 'card-before', 'ocorrencias_identificadas_antes');
+            html += renderCardGroup('Serviços Executados', diagnostico_manutencao, 'card-executed', 'servicos_executados');
+            html += renderCardGroup('Pendências Remanescentes', diagnostico_manutencao, 'card-pendency', 'pendencias_remanescentes_depois');
+        }
+        html += `<div class="card card-add"><p><span class="material-symbols-outlined">add_circle</span> Adicionar Ocorrência</p></div>`;
+        if(conclusao_auditoria !== undefined) {
+            html += `<div id="conclusion-card" class="card">
+                        <div class="conclusion-header">
+                            <h3 class="card-group-title">Conclusão da Auditoria</h3>
+                            <button id="gemini-conclusion-btn" title="Gerar conclusão com IA">
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/8/8f/Google-gemini-icon.svg" alt="Gemini Icon"/>
+                                Sugerir
+                            </button>
+                        </div>
+                        <div class="textarea-wrapper">
+                            <textarea placeholder="Escreva uma resenha sobre a atividade....">${conclusao_auditoria}</textarea>
+                            <div class="gemini-magic-overlay"></div>
+                        </div>
+                    </div>`;
+        }
+        analysisDetails.innerHTML = html;
+        const conclusionTextarea = document.querySelector('#conclusion-card textarea');
+        autosizeTextarea(conclusionTextarea);
+        hideSpinner();
+    }
+  
+    function applyMasonryLayout() {
+      const imageStack = document.getElementById('image-stack');
+      if (!imageStack.classList.contains('grid-view')) return;
+  
+      const imageWrappers = imageStack.querySelectorAll('.image-wrapper');
+      if (imageWrappers.length === 0) return;
+  
+      // Adicionando verificação de responsividade
+      if (window.innerWidth <= 992) {
+          // Em telas menores, removemos os estilos inline para que o CSS controle o layout
+          imageStack.style.height = '';
+          imageWrappers.forEach(wrapper => {
+              wrapper.style.position = '';
+              wrapper.style.left = '';
+              wrapper.style.top = '';
+              wrapper.style.width = '';
+          });
+          return; // Interrompe a execução do masonry
       }
+  
+      // Ajuste dinâmico: em viewports com pouca altura, usamos 2 colunas para melhor UX
+      const isShortViewport = window.innerHeight <= 640; // ~620px (margem de segurança)
+      const numColumns = isShortViewport ? 2 : 3;
+      const gap = 16; 
+  
+      const columnHeights = Array(numColumns).fill(0);
+      
+      const columnWidth = (imageStack.clientWidth - (gap * (numColumns - 1))) / numColumns;
+  
+      imageWrappers.forEach(wrapper => {
+        wrapper.style.width = `${columnWidth}px`;
+  
+        const minHeight = Math.min(...columnHeights);
+        const columnIndex = columnHeights.indexOf(minHeight);
+  
+        const top = minHeight;
+        const left = columnIndex * (columnWidth + gap);
+  
+        wrapper.style.left = `${left}px`;
+        wrapper.style.top = `${top}px`;
+  
+        columnHeights[columnIndex] += wrapper.offsetHeight + gap;
+      });
+  
+      const totalHeight = Math.max(...columnHeights);
+      imageStack.style.height = `${totalHeight}px`;
+    }
+  
+    function renderImages(images) {
+        imageStack.innerHTML = '';
+        if (!images || images.length === 0) {
+            imageStack.innerHTML = '<p>Nenhuma imagem encontrada.</p>';
+            return Promise.resolve();
+        }
+  
+        // Ordena as imagens pelo nome para garantir a ordem cronológica
+        images.sort((a, b) => a.name.localeCompare(b.name));
+  
+        const imageLoadPromises = [];
+  
+        images.forEach((img, i) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'image-wrapper';
+          wrapper.onclick = (e) => {
+              if (imageStack.classList.contains('grid-view')) {
+                  e.stopPropagation();
+                  openImageModal(i);
+              }
+          };
+          const imgEl = document.createElement('img');
+  
+          const loadPromise = new Promise(resolve => {
+              imgEl.onload = resolve;
+              imgEl.onerror = resolve;
+              imgEl.src = img.data;
+              imgEl.alt = img.name;
+          });
+          imageLoadPromises.push(loadPromise);
+  
+          wrapper.appendChild(imgEl);
+          imageStack.appendChild(wrapper);
+        });
+        
+        return Promise.all(imageLoadPromises); 
+    }
+  
+    function updateDataObjectFromDOM() {
+      const item = analysisQueue[currentAnalysisIndex];
+      if (!item || !item.analysisData || !item.analysisData.error) return;
+      const conclusionTextarea = document.querySelector('#conclusion-card textarea');
+      if (conclusionTextarea) {
+          item.analysisData.conclusao_auditoria = conclusionTextarea.value;
+      }
+    }
+  
+    let zoom = 1, isPanning = false, startX, startY, panX = 0, panY = 0;
+    let baseDisplayWidth = 0, baseDisplayHeight = 0; // image size at zoom=1
+    const activePointers = new Map();
+    let lastPinchDistance = null;
+    let allowFreePan = true; // allow moving beyond the image frame freely
 
-      const description = occurrenceDescriptionTextarea.value.trim() || 'Ocorrência adicionada pelo usuário.';
-      const data = analysisQueue[currentAnalysisIndex].analysisData;
-      if (data?.diagnostico_manutencao) {
-          const diag = data.diagnostico_manutencao;
-          diag.servicos_executados = diag.servicos_executados?.filter(o => o.item_resolvido !== itemName) || [];
-          diag.pendencias_remanescentes_depois = diag.pendencias_remanescentes_depois?.filter(o => o.item !== itemName) || [];
-          const tipoOcorrencia = GLOSSARIO_OCORRENCIAS.Corretivas.includes(itemName) ? 'Corretiva' : 'Preventiva';
-          if (category === 'servicos_executados') {
-              if (!diag.servicos_executados) diag.servicos_executados = [];
-              diag.servicos_executados.push({ item_resolvido: itemName, acao_realizada: description });
-          } else {
-              if (!diag.pendencias_remanescentes_depois) diag.pendencias_remanescentes_depois = [];
-              diag.pendencias_remanescentes_depois.push({ item: itemName, tipo: tipoOcorrencia, status: 'Pendente', descricao: description });
+    function ensureBaseSize() {
+        if (!imageModalImg) return;
+        if (baseDisplayWidth === 0 || baseDisplayHeight === 0) {
+            baseDisplayWidth = imageModalImg.clientWidth || imageModalImg.naturalWidth || 0;
+            baseDisplayHeight = imageModalImg.clientHeight || imageModalImg.naturalHeight || 0;
+        }
+    }
+    function openImageModal(index) {
+        modalImageIndex = index;
+        showModalImage(modalImageIndex);
+        showModal('image-modal');
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('keydown', handleKeyboardNav);
+        // showImageModalHintOnce();
+        // Coach: first time opening modal
+        try { userSignals && (userSignals.openedModal = (userSignals.openedModal||0) + 1); } catch(_) {}
+        // try { maybeCoach && maybeCoach('modal', userSignals.openedModal === 1); } catch(_) {}
+        try { recordUserAction('open_image_modal', { index }); } catch(_) {}
+    }
+    function closeImageModal() {
+        closeModal('image-modal');
+        document.body.style.overflow = 'auto';
+        document.removeEventListener('keydown', handleKeyboardNav);
+    }
+    function showModalImage(index) {
+        const images = analysisQueue[currentAnalysisIndex]?.imageData;
+        if (!images || !images[index]) return;
+        imageModalImg.src = images[index].data;
+        resetZoomAndPan();
+        // Ensure we measure the displayed size at zoom=1 for correct bounds
+        imageModalImg.onload = () => {
+            requestAnimationFrame(() => {
+                baseDisplayWidth = imageModalImg.clientWidth;
+                baseDisplayHeight = imageModalImg.clientHeight;
+                clampPan();
+                applyTransform();
+            });
+        };
+        // Fallback if the image is cached and onload does not fire
+        requestAnimationFrame(() => {
+            ensureBaseSize();
+            clampPan();
+            applyTransform();
+        });
+    }
+    function navigateModal(direction) {
+        const totalImages = analysisQueue[currentAnalysisIndex]?.imageData?.length || 0;
+        if (totalImages === 0) return;
+        modalImageIndex = (modalImageIndex + direction + totalImages) % totalImages;
+        showModalImage(modalImageIndex);
+    }
+    function handleKeyboardNav(e) {
+        if (e.key === 'ArrowRight') navigateModal(1);
+        if (e.key === 'ArrowLeft') navigateModal(-1);
+        if (e.key === 'Escape') closeImageModal();
+    }
+    function applyTransform() {
+        imageModalImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    }
+    function clampPan() {
+        if (allowFreePan) return; // No clamping when free-pan is enabled
+        if (!imageModalContent) return;
+        const containerRect = imageModalContent.getBoundingClientRect();
+        const scaledWidth = baseDisplayWidth * zoom;
+        const scaledHeight = baseDisplayHeight * zoom;
+        const maxX = Math.max(0, (scaledWidth - containerRect.width) / 2);
+        const maxY = Math.max(0, (scaledHeight - containerRect.height) / 2);
+        panX = Math.max(-maxX, Math.min(panX, maxX));
+        panY = Math.max(-maxY, Math.min(panY, maxY));
+    }
+    function updateZoom(newZoom) {
+        zoom = Math.max(0.5, Math.min(newZoom, 5));
+        clampPan();
+        applyTransform();
+        zoomLevelSpan.textContent = `${Math.round(zoom * 100)}%`;
+    }
+    function resetZoomAndPan() {
+        zoom = 1; panX = 0; panY = 0;
+        updateZoom(1);
+    }
+
+    function updateZoomAt(targetZoom, clientX, clientY) {
+        ensureBaseSize();
+        const newZoom = Math.max(0.5, Math.min(targetZoom, 5));
+        const oldZoom = zoom;
+        if (!imageModalContent) {
+            updateZoom(newZoom);
+            return;
+        }
+        const rect = imageModalContent.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const mx = clientX ?? cx;
+        const my = clientY ?? cy;
+        const scaleFactor = newZoom / (oldZoom || 1);
+        // Keep the point under the cursor fixed while zooming
+        panX = panX + (1 - scaleFactor) * (mx - cx - panX);
+        panY = panY + (1 - scaleFactor) * (my - cy - panY);
+        updateZoom(newZoom);
+    }
+    imageModalClose.onclick = closeImageModal;
+    imageModalPrev.onclick = (e) => { e.stopPropagation(); navigateModal(-1); };
+    imageModalNext.onclick = (e) => { e.stopPropagation(); navigateModal(1); };
+    zoomInBtn.onclick = () => {
+        const rect = imageModalContent.getBoundingClientRect();
+        updateZoomAt(zoom * 1.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    };
+    zoomOutBtn.onclick = () => {
+        const rect = imageModalContent.getBoundingClientRect();
+        updateZoomAt(zoom / 1.2, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    };
+
+    // Disable native image dragging and context menu during pan
+    imageModalImg.setAttribute('draggable', 'false');
+    imageModalImg.addEventListener('dragstart', (e) => e.preventDefault());
+    imageModalImg.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Mouse wheel zoom
+    imageModalImg.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.1 : 0.9;
+        updateZoomAt(zoom * factor, e.clientX, e.clientY);
+    });
+
+    // Pointer events for pan and pinch-to-zoom
+    function onPointerDown(e) {
+        imageModalImg.setPointerCapture(e.pointerId);
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (activePointers.size === 1) {
+            e.preventDefault();
+            isPanning = true;
+            startX = e.clientX - panX;
+            startY = e.clientY - panY;
+            imageModalImg.classList.add('panning');
+        }
+        if (activePointers.size === 2) {
+            const pts = Array.from(activePointers.values());
+            lastPinchDistance = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        }
+    }
+    function onPointerMove(e) {
+        if (!activePointers.has(e.pointerId)) return;
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (activePointers.size === 2) {
+            const pts = Array.from(activePointers.values());
+            const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            if (lastPinchDistance != null) {
+                const factor = 1 + (dist - lastPinchDistance) / 300; // sensitivity
+                updateZoom(zoom * factor);
+            }
+            lastPinchDistance = dist;
+            return;
+        }
+        if (isPanning) {
+            panX = e.clientX - startX;
+            panY = e.clientY - startY;
+            clampPan();
+            applyTransform();
+        }
+    }
+    function endPointer(e) {
+        activePointers.delete(e.pointerId);
+        if (activePointers.size < 2) lastPinchDistance = null;
+        if (activePointers.size === 0) {
+            isPanning = false;
+            imageModalImg.classList.remove('panning');
+        }
+    }
+
+    imageModalImg.addEventListener('pointerdown', onPointerDown);
+    imageModalImg.addEventListener('pointermove', onPointerMove);
+    imageModalImg.addEventListener('pointerup', endPointer);
+    imageModalImg.addEventListener('pointercancel', endPointer);
+    imageModalImg.addEventListener('pointerleave', endPointer);
+
+    // Double-click to toggle zoom
+    imageModalImg.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        if (zoom > 1) {
+            panX = 0; panY = 0; updateZoomAt(1, e.clientX, e.clientY);
+        } else {
+            updateZoomAt(2, e.clientX, e.clientY);
+        }
+    });
+
+    /*
+    // Hint splash (first time)
+    function showImageModalHintOnce() {
+        try {
+            if (localStorage.getItem('imageModalHintSeen') === '1') return;
+        } catch (_) {}
+        let hint = document.getElementById('image-modal-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'image-modal-hint';
+            hint.innerHTML = `
+              <div class="hint-content">
+                <div class="hint-line"><span class="material-symbols-outlined">pan_tool</span><span>Arraste para mover livremente</span></div>
+                <div class="hint-line"><span class="material-symbols-outlined">zoom_in</span><span>Role para dar zoom no cursor</span></div>
+                <div class="hint-line"><span class="material-symbols-outlined">mouse</span><span>Duplo clique alterna o zoom</span></div>
+              </div>`;
+            imageModal.appendChild(hint);
+        }
+        requestAnimationFrame(() => hint.classList.add('show'));
+        const dismiss = () => {
+            if (!hint) return;
+            hint.classList.add('hiding');
+            setTimeout(() => hint && hint.remove(), 350);
+            try { localStorage.setItem('imageModalHintSeen', '1'); } catch (_) {}
+            imageModal.removeEventListener('pointerdown', dismiss);
+            imageModal.removeEventListener('wheel', dismiss, { passive: true });
+            imageModal.removeEventListener('keydown', dismiss);
+        };
+        setTimeout(dismiss, 2500);
+        imageModal.addEventListener('pointerdown', dismiss);
+        imageModal.addEventListener('wheel', dismiss, { passive: true });
+        imageModal.addEventListener('keydown', dismiss);
+    }
+    */
+  
+    function handleGeminiConclusion(buttonEl) {
+      const item = analysisQueue[currentAnalysisIndex];
+      if (!item || !item.analysisData) {
+          showNotification('Dados da análise não encontrados.', 'warn');
+          return;
+      }
+      const conclusionCard = document.getElementById('conclusion-card');
+      const textarea = conclusionCard.querySelector('textarea');
+      const magicOverlay = conclusionCard.querySelector('.gemini-magic-overlay');
+      buttonEl.disabled = true;
+      magicOverlay.classList.add('active');
+      const diag = item.analysisData.diagnostico_manutencao || {};
+      const temporal = item.analysisData.analise_temporal || {};
+      const rascunhoParaIA = {
+          diagnostico_manutencao: {
+            houve_ocorrencia_previa: diag.houve_ocorrencia_previa,
+            ocorrencias_identificadas_antes: diag.ocorrencias_identificadas_antes,
+            servicos_executados: diag.servicos_executados,
+            pendencias_remanescentes_depois: diag.pendencias_remanescentes_depois
+          },
+          analise_temporal: {
+            duracao_servico_minutos: temporal.duracao_servico_minutos,
+            consistencia_temporal: temporal.consistencia_temporal
           }
-          if (!diag.ocorrencias_identificadas_antes?.some(o => o.item === itemName)) {
-              if (!diag.ocorrencias_identificadas_antes) diag.ocorrencias_identificadas_antes = [];
-              diag.ocorrencias_identificadas_antes.push({ item: itemName, tipo: tipoOcorrencia, descricao: "Ocorrência adicionada manualmente pelo usuário." });
-          }
+      };
+      const onFinish = () => { buttonEl.disabled = false; magicOverlay.classList.remove('active'); };
+      google.script.run
+          .withSuccessHandler(novaConclusao => {
+              typeWriterEffect(textarea, novaConclusao, 4, () => {
+                  item.analysisData.conclusao_auditoria = novaConclusao;
+                  clearTimeout(saveTimeout);
+                  saveTimeout = setTimeout(() => saveCurrentAnalysis(false, currentAnalysisIndex), 1000);
+                  onFinish();
+              });
+          })
+          .withFailureHandler(error => { showNotification(`Erro da IA: ${error.message}`, 'warn'); onFinish(); })
+          .gerarConclusaoComGemma(JSON.stringify(rascunhoParaIA));
+    }
+  
+    function undoAction(actionId) {
+      clearTimeout(saveTimeout);
+      const undoData = undoSnapshots.get(actionId);
+  
+      if (undoData) {
+          clearTimeout(undoData.cleanupTimeoutId);
+          const item = analysisQueue[currentAnalysisIndex];
+          item.analysisData.diagnostico_manutencao = undoData.snapshot;
+          undoSnapshots.delete(actionId);
+  
           const isGridView = imageStack.classList.contains('grid-view');
           renderAnalysisData(currentAnalysisIndex, false);
           if (isGridView) {
@@ -1369,88 +1923,361 @@ document.addEventListener('DOMContentLoaded', function() {
               collapseGridBtn.classList.remove('hidden');
           }
           saveCurrentAnalysis(false, currentAnalysisIndex);
-      }
-      closeModal('add-occurrence-modal');
-  });
-
-  addOccurrenceModalContainer.addEventListener('click', (e) => {
-    const clickedBtn = e.target.closest('.category-toggle-btn');
-    if (!clickedBtn || clickedBtn.classList.contains('selected')) return;
-    clickedBtn.parentElement.querySelectorAll('.category-toggle-btn').forEach(btn => btn.classList.remove('selected'));
-    clickedBtn.classList.add('selected');
-  });
-  occurrenceDescriptionTextarea.addEventListener('input', () => autosizeTextarea(occurrenceDescriptionTextarea));
-  
-  openSheetBtn.addEventListener('click', () => {
-    const url = openSheetBtn.dataset.url;
-    if (url) {
-        window.open(url, '_blank');
-    } else {
-        showNotification("A URL da planilha ainda não foi carregada.", "warn");
-    }
-  });
-
-  openInDriveBtn.addEventListener('click', () => {
-      if (currentAnalysisIndex === -1) return;
-      const id = analysisQueue[currentAnalysisIndex].id;
-      window.open('https://drive.google.com/drive/folders/' + id, '_blank');
-  });
-
-  const toggleSidebar = (forceState) => {
-      const body = document.body;
-      const shouldBeOpen = forceState !== undefined ? forceState : !body.classList.contains('sidebar-open');
-      
-      body.classList.toggle('sidebar-open', shouldBeOpen);
-
-      if (shouldBeOpen) {
-          document.addEventListener('click', handleOutsideClick, true);
+          showNotification("Ação desfeita.", 'info');
       } else {
-          document.removeEventListener('click', handleOutsideClick, true);
+        console.warn(`Não foi possível encontrar os dados para desfazer a ação: ${actionId}. O tempo para desfazer pode ter expirado.`);
       }
-  };
-
-  const handleOutsideClick = (event) => {
-      if (hamburgerBtn.contains(event.target)) {
+    }
+  
+    function handleOccurrenceAction(action, itemName) {
+      const item = analysisQueue[currentAnalysisIndex];
+      if (!item || !item.analysisData || !item.analysisData.diagnostico_manutencao) return;
+  
+      const snapshot = JSON.parse(JSON.stringify(item.analysisData.diagnostico_manutencao));
+      const actionId = `undo-${Date.now()}-${Math.random()}`;
+      const cleanupTimeoutId = setTimeout(() => { undoSnapshots.delete(actionId); }, 8000);
+      undoSnapshots.set(actionId, { snapshot, cleanupTimeoutId });
+  
+      const diag = item.analysisData.diagnostico_manutencao;
+      const isGridView = imageStack.classList.contains('grid-view');
+      let notificationMessage = '';
+      if (!diag.ocorrencias_identificadas_antes) diag.ocorrencias_identificadas_antes = [];
+      if (!diag.servicos_executados) diag.servicos_executados = [];
+      if (!diag.pendencias_remanescentes_depois) diag.pendencias_remanescentes_depois = [];
+      if (!diag.ocorrencias_excluidas) diag.ocorrencias_excluidas = []; // Garantir que o array de excluídas exista
+  
+      switch (action) {
+          case 'delete': {
+              let found = false;
+              let occurrenceToMove;
+              
+              const indexAntes = diag.ocorrencias_identificadas_antes.findIndex(o => o.item === itemName);
+              if (indexAntes > -1) {
+                  occurrenceToMove = diag.ocorrencias_identificadas_antes.splice(indexAntes, 1)[0];
+                  diag.ocorrencias_excluidas.push(occurrenceToMove);
+                  found = true;
+              }
+  
+              const indexExecutados = diag.servicos_executados.findIndex(o => o.item_resolvido === itemName);
+              if (indexExecutados > -1) {
+                  occurrenceToMove = diag.servicos_executados.splice(indexExecutados, 1)[0];
+                  diag.ocorrencias_excluidas.push({
+                      item: occurrenceToMove.item_resolvido,
+                      tipo: 'N/A',
+                      descricao: occurrenceToMove.acao_realizada
+                  });
+                  found = true;
+              }
+  
+              const indexPendentes = diag.pendencias_remanescentes_depois.findIndex(o => o.item === itemName);
+              if (indexPendentes > -1) {
+                  occurrenceToMove = diag.pendencias_remanescentes_depois.splice(indexPendentes, 1)[0];
+                  diag.ocorrencias_excluidas.push(occurrenceToMove);
+                  found = true;
+              }
+  
+              if (found) {
+                notificationMessage = `Ocorrência '${itemName}' marcada como inexistente.`;
+              }
+              break;
+          }
+          case 'move-to-pending': {
+              const serviceIndex = diag.servicos_executados.findIndex(o => o.item_resolvido === itemName);
+              if (serviceIndex > -1) {
+                  const originalOccurrence = snapshot.ocorrencias_identificadas_antes.find(o => o.item === itemName);
+                  diag.servicos_executados.splice(serviceIndex, 1);
+                  diag.pendencias_remanescentes_depois.push({
+                      item: itemName,
+                      tipo: originalOccurrence ? originalOccurrence.tipo : 'Preventiva',
+                      status: "Pendente",
+                      descricao: "O usuário definiu a ocorrência como ainda pendente."
+                  });
+                  notificationMessage = `'${itemName}' movida para pendências.`;
+              }
+              break;
+          }
+          case 'move-to-executed': {
+              const pendencyIndex = diag.pendencias_remanescentes_depois.findIndex(o => o.item === itemName);
+              if (pendencyIndex > -1) {
+                  diag.pendencias_remanescentes_depois.splice(pendencyIndex, 1);
+                  diag.servicos_executados.push({
+                      item_resolvido: itemName,
+                      acao_realizada: "O usuário definiu a ocorrência como executada."
+                  });
+                  notificationMessage = `'${itemName}' marcada como corrigida.`;
+              }
+              break;
+          }
+      }
+      renderAnalysisData(currentAnalysisIndex, false);
+      if (isGridView) {
+          imageStack.classList.add('grid-view');
+          collapseGridBtn.classList.remove('hidden');
+      }
+      if(notificationMessage) {
+        showNotification(notificationMessage, 'warn', { label: "Desfazer", callback: () => undoAction(actionId) });
+      }
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+          saveCurrentAnalysis(false, currentAnalysisIndex);
+      }, 7100);
+    }
+  
+    imageModal.addEventListener('click', function(event) {
+      const nonClosingElements = ['#image-modal-img', '.modal-nav', '#image-modal-close', '#image-modal-toolbar'];
+      if (!nonClosingElements.some(selector => event.target.closest(selector))) closeImageModal();
+    });
+    imageStackContainer.addEventListener('click', (e) => {
+        if (!imageStack.classList.contains('grid-view')) {
+            imageStack.classList.add('grid-view');
+            collapseGridBtn.classList.remove('hidden');
+  
+            requestAnimationFrame(() => {
+              applyMasonryLayout();
+            });
+        }
+        // Coach: first time user clicks in image area, suggest grid usage
+        try { userSignals && (userSignals.clickedImageStack = (userSignals.clickedImageStack||0) + 1); } catch(_) {}
+        // try { maybeCoach && maybeCoach('grid', userSignals.clickedImageStack === 1); } catch(_) {}
+        try { recordUserAction('click_image_container'); } catch(_) {}
+    });
+    collapseGridBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        imageStack.classList.remove('grid-view');
+        collapseGridBtn.classList.add('hidden');
+        
+        // Remove os estilos inline para que a animação de volta funcione
+        const imageWrappers = imageStack.querySelectorAll('.image-wrapper');
+        imageStack.style.height = '';
+        imageWrappers.forEach(wrapper => {
+            wrapper.style.position = '';
+            wrapper.style.left = '';
+            wrapper.style.top = '';
+            wrapper.style.width = '';
+        });
+        try { recordUserAction('collapse_grid'); } catch(_) {}
+    });
+    analysisDetails.addEventListener('click', (e) => {
+        const geminiBtn = e.target.closest('#gemini-conclusion-btn');
+        if (geminiBtn) { e.stopPropagation(); handleGeminiConclusion(geminiBtn); return; }
+        const actionButton = e.target.closest('.action-btn[data-action]');
+        if (actionButton) {
+            e.stopPropagation();
+            const card = actionButton.closest('.card[data-item-name]');
+            if (card) handleOccurrenceAction(actionButton.dataset.action, card.dataset.itemName);
+            return;
+        }
+        const groupTitle = e.target.closest('.card-group-title');
+        if (groupTitle) {
+            groupTitle.classList.toggle('collapsed');
+            const content = groupTitle.nextElementSibling;
+            if (content?.classList.contains('card-group-content')) content.classList.toggle('collapsed');
+            return;
+        }
+        if (e.target.closest('.card-add')) { openAddOccurrenceModal(); return; }
+    });
+    analysisDetails.addEventListener('input', (e) => {
+      if (e.target.tagName === 'TEXTAREA') {
+          autosizeTextarea(e.target);
+          clearTimeout(saveTimeout);
+          saveTimeout = setTimeout(() => saveCurrentAnalysis(false, currentAnalysisIndex), 1500);
+      }
+    });
+  
+    function openAddOccurrenceModal() {
+      addOccurrenceModalContainer.querySelectorAll('.category-toggle-btn').forEach((btn, index) => {
+        btn.classList.toggle('selected', index === 0);
+      });
+      
+      customSelect.classList.remove('open');
+      customSelectText.textContent = 'Selecione um item...';
+      customSelectText.classList.add('placeholder');
+      customSelect.dataset.value = '';
+      customSelectSearchInput.value = '';
+      customSelectOptionsList.querySelectorAll('.option').forEach(opt => opt.classList.remove('hidden'));
+  
+      occurrenceDescriptionTextarea.value = '';
+      autosizeTextarea(occurrenceDescriptionTextarea);
+      showModal('add-occurrence-modal');
+    }
+    closeAddOccurrenceBtn.onclick = () => closeModal('add-occurrence-modal');
+    window.onclick = (event) => {
+      if (event.target == addOccurrenceModal) closeModal('add-occurrence-modal');
+    };
+  
+    saveOccurrenceBtn.addEventListener('click', () => {
+        const category = addOccurrenceModalContainer.querySelector('.category-toggle-btn.selected')?.dataset.value || 'pendencias_remanescentes_depois';
+        const itemName = customSelect.dataset.value;
+        
+        if (!itemName) {
+          showNotification('Por favor, selecione um item da ocorrência.', 'warn');
           return;
+        }
+  
+        const description = occurrenceDescriptionTextarea.value.trim() || 'Ocorrência adicionada pelo usuário.';
+        const data = analysisQueue[currentAnalysisIndex].analysisData;
+        if (data?.diagnostico_manutencao) {
+            const diag = data.diagnostico_manutencao;
+            diag.servicos_executados = diag.servicos_executados?.filter(o => o.item_resolvido !== itemName) || [];
+            diag.pendencias_remanescentes_depois = diag.pendencias_remanescentes_depois?.filter(o => o.item !== itemName) || [];
+            const tipoOcorrencia = GLOSSARIO_OCORRENCIAS.Corretivas.includes(itemName) ? 'Corretiva' : 'Preventiva';
+            if (category === 'servicos_executados') {
+                if (!diag.servicos_executados) diag.servicos_executados = [];
+                diag.servicos_executados.push({ item_resolvido: itemName, acao_realizada: description });
+            } else {
+                if (!diag.pendencias_remanescentes_depois) diag.pendencias_remanescentes_depois = [];
+                diag.pendencias_remanescentes_depois.push({ item: itemName, tipo: tipoOcorrencia, status: 'Pendente', descricao: description });
+            }
+            if (!diag.ocorrencias_identificadas_antes?.some(o => o.item === itemName)) {
+                if (!diag.ocorrencias_identificadas_antes) diag.ocorrencias_identificadas_antes = [];
+                diag.ocorrencias_identificadas_antes.push({ item: itemName, tipo: tipoOcorrencia, descricao: "Ocorrência adicionada manualmente pelo usuário." });
+            }
+            const isGridView = imageStack.classList.contains('grid-view');
+            renderAnalysisData(currentAnalysisIndex, false);
+            if (isGridView) {
+                imageStack.classList.add('grid-view');
+                collapseGridBtn.classList.remove('hidden');
+            }
+            saveCurrentAnalysis(false, currentAnalysisIndex);
+        }
+        closeModal('add-occurrence-modal');
+    });
+  
+    // ==================== PROGRESS BAR FUNCTIONS ====================
+    function calculateAnalysisProgress() {
+      if (analysisQueue.length === 0) return 0;
+      
+      let userCompletedCount = 0;
+      let totalCount = analysisQueue.length;
+      
+      analysisQueue.forEach(item => {
+        // Only count items that the user has reviewed as completed
+        // 'analyzed' means AI has analyzed but user hasn't reviewed yet
+        // 'reviewed' means user has completed their analysis
+        if (item.status === 'reviewed') {
+          userCompletedCount++;
+        }
+      });
+      
+      return Math.round((userCompletedCount / totalCount) * 100);
+    }
+    
+    function updateProgressBar() {
+      const progress = calculateAnalysisProgress();
+      
+      // Show progress container if there are items in queue
+      if (analysisQueue.length > 0) {
+        progressContainer.classList.add('visible');
+      } else {
+        progressContainer.classList.remove('visible');
+        return;
       }
-      if (document.body.classList.contains('sidebar-open') && !sidebar.contains(event.target)) {
-          toggleSidebar(false);
+      
+      // Update percentage text
+      progressPercentage.textContent = `${progress}%`;
+      
+      // Update progress fill with smooth animation
+      progressFill.style.width = `${progress}%`;
+      
+      // Update progress text based on completion
+      if (progress === 0) {
+        progressText.textContent = 'Aguardando revisão...';
+      } else if (progress === 100) {
+        progressText.textContent = 'Todas as pastas revisadas!';
+      } else {
+        progressText.textContent = 'Progresso da Revisão';
       }
-  };
-
-  hamburgerBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      toggleSidebar();
+    }
+    
+    // Override the existing renderSidebar function to include progress updates
+    const originalRenderSidebar = renderSidebar;
+    renderSidebar = function() {
+      originalRenderSidebar();
+      updateProgressBar();
+    };
+  
+    addOccurrenceModalContainer.addEventListener('click', (e) => {
+      const clickedBtn = e.target.closest('.category-toggle-btn');
+      if (!clickedBtn || clickedBtn.classList.contains('selected')) return;
+      clickedBtn.parentElement.querySelectorAll('.category-toggle-btn').forEach(btn => btn.classList.remove('selected'));
+      clickedBtn.classList.add('selected');
+    });
+    occurrenceDescriptionTextarea.addEventListener('input', () => autosizeTextarea(occurrenceDescriptionTextarea));
+    
+    openSheetBtn.addEventListener('click', () => {
+      const url = openSheetBtn.dataset.url;
+      if (url) {
+          window.open(url, '_blank');
+      } else {
+          showNotification("A URL da planilha ainda não foi carregada.", "warn");
+      }
+    });
+  
+    openInDriveBtn.addEventListener('click', () => {
+        if (currentAnalysisIndex === -1) return;
+        const id = analysisQueue[currentAnalysisIndex].id;
+        window.open('https://drive.google.com/drive/folders/' + id, '_blank');
+    });
+  
+    const toggleSidebar = (forceState) => {
+        const body = document.body;
+        const shouldBeOpen = forceState !== undefined ? forceState : !body.classList.contains('sidebar-open');
+        
+        body.classList.toggle('sidebar-open', shouldBeOpen);
+  
+        if (shouldBeOpen) {
+            document.addEventListener('click', handleOutsideClick, true);
+        } else {
+            document.removeEventListener('click', handleOutsideClick, true);
+        }
+    };
+  
+    const handleOutsideClick = (event) => {
+        if (hamburgerBtn.contains(event.target)) {
+            return;
+        }
+        if (document.body.classList.contains('sidebar-open') && !sidebar.contains(event.target)) {
+            toggleSidebar(false);
+        }
+    };
+  
+    hamburgerBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleSidebar();
+        // Coach: first time opening sidebar
+        try { userSignals && (userSignals.openedSidebar = (userSignals.openedSidebar||0) + 1); } catch(_) {}
+        // try { maybeCoach && maybeCoach('sidebar', userSignals.openedSidebar === 1); } catch(_) {}
+        try { recordUserAction('toggle_sidebar', { open: document.body.classList.contains('sidebar-open') }); } catch(_) {}
+    });
+  
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        applyMasonryLayout();
+      }, 250);
+    });
   });
-
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      applyMasonryLayout();
-    }, 250);
-  });
-});
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('<?= ScriptApp.getService().getUrl() ?>?page=sw')
-      .then(registration => console.log('Service Worker registrado com sucesso:', registration))
-      .catch(error => console.log('Falha ao registrar o Service Worker:', error));
-  });
-}
-</script>
-<script>
-  function triggerAddressCacheUpdate() {
-    google.script.run
-      .withSuccessHandler(() => console.log("Cache de endereços atualizado com sucesso."))
-      .withFailureHandler((err) => console.error("Falha ao atualizar cache de endereços:", err))
-      .atualizarCacheDeEnderecos();
+  
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('<?= ScriptApp.getService().getUrl() ?>?page=sw')
+        .then(registration => console.log('Service Worker registrado com sucesso:', registration))
+        .catch(error => console.log('Falha ao registrar o Service Worker:', error));
+    });
   }
-  function triggerModelCacheUpdate() {
-    google.script.run
-      .withSuccessHandler(() => console.log("Cache de modelos atualizado com sucesso."))
-      .withFailureHandler((err) => console.error("Falha ao atualizar cache de modelos:", err))
-      .atualizarCacheDeModelos();
-  }
-</script>
+  </script>
+  <script>
+    function triggerAddressCacheUpdate() {
+      google.script.run
+        .withSuccessHandler(() => console.log("Cache de endereços atualizado com sucesso."))
+        .withFailureHandler((err) => console.error("Falha ao atualizar cache de endereços:", err))
+        .atualizarCacheDeEnderecos();
+    }
+    function triggerModelCacheUpdate() {
+      google.script.run
+        .withSuccessHandler(() => console.log("Cache de modelos atualizado com sucesso."))
+        .withFailureHandler((err) => console.error("Falha ao atualizar cache de modelos:", err))
+        .atualizarCacheDeModelos();
+    }
+  </script>

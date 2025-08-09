@@ -631,6 +631,77 @@ body.sidebar-open #hamburger-btn {
     margin-top: 1rem; 
 }
 
+/* ================== Progress Bar ================== */
+.progress-container {
+    margin: 1rem 0;
+    padding: 0 0.5rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.4s var(--transition-easing), transform 0.4s var(--transition-easing);
+}
+
+.progress-container.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.progress-text {
+    color: var(--text-muted);
+}
+
+.progress-percentage {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background-color: #6c757d1a;
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-orange));
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.6s var(--transition-easing);
+    position: relative;
+}
+
+/* Shine overlay across the entire track (left to right) */
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: translateX(-100%);
+    animation: shimmer 2s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 2;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
     .status-dot { 
       width: 10px; 
       height: 10px; 
@@ -860,13 +931,18 @@ body.sidebar-open #hamburger-btn {
         padding-right: 20px;
         transform: translateX(101%);
         opacity: 0;
+        visibility: hidden; /* Prevents focus/tab when hidden */
+        pointer-events: none; /* Avoid accidental interactions when hidden */
         transition: transform 0.4s var(--transition-easing), opacity 0.4s var(--transition-easing);
         z-index: 2;
     }
-    .card:hover .card-actions {
+.card:hover .card-actions,
+.card:focus-within .card-actions {
         transform: translateX(0);
         opacity: 1;
-    }
+        visibility: visible;
+        pointer-events: auto;
+}
     .action-btn {
         background-color: white;
         color: var(--text-color);
@@ -965,7 +1041,7 @@ body.sidebar-open #hamburger-btn {
     #image-modal-img {
       max-width: 90vw; max-height: 85vh;
       border-radius: 24px;
-      transition: transform 0.2s ease-out; cursor: grab; user-select: none;
+      transition: transform 0.2s ease-out; cursor: grab; user-select: none; -webkit-user-drag: none; touch-action: none;
     }
     #image-modal-img.panning { cursor: grabbing; }
     #image-modal-close {
@@ -1016,6 +1092,106 @@ body.sidebar-open #hamburger-btn {
       transform: none; /* Ensure no movement */
       box-shadow: none; /* Ensure no shadow */
     }
+
+    /* ================== Coach Hints (Tutorial) ================== */
+    #coach-hint {
+      position: fixed;
+      left: 0; top: 0; /* initial; moved by JS around the cursor */
+      transform: scale(0.94);
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 16px;
+      color: white;
+      font-weight: 700;
+      z-index: 2005;
+
+      /* Glassmorphism (same family as sidebar/modal controls) */
+      background-color: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px) saturate(180%);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+
+      pointer-events: none; /* non-blocking */
+      user-select: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      opacity: 0;
+    }
+    #coach-hint.show { 
+      display: inline-flex; 
+      opacity: 1; 
+      animation: coach-pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both; 
+      transform: scale(1);
+    }
+    #coach-hint.hiding { animation: coach-fade-out 220ms ease forwards; }
+    #coach-hint .material-symbols-outlined { font-size: 1.25rem; opacity: 0.95; }
+    #coach-hint .hint-text { white-space: nowrap; font-size: 0.95rem; }
+    /* Avatar removed */
+
+    @keyframes coach-pop-in {
+      0% { opacity: 0; transform: scale(0.92); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes coach-fade-out {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.98); }
+    }
+
+    /* Mobile: fixed bottom center */
+    @media (max-width: 992px) {
+      #coach-hint {
+        left: 50% !important;
+        bottom: env(safe-area-inset-bottom, 16px); top: auto !important;
+        transform: translateX(-50%);
+        padding: 12px 16px;
+        max-width: min(92vw, 540px);
+        width: auto;
+        white-space: normal;
+        line-height: 1.35;
+        text-align: center;
+      }
+    }
+
+    /* Hint splash for image modal (animated, non-selectable) */
+    #image-modal-hint {
+      position: absolute;
+      bottom: 88px;
+      left: 50%;
+      transform: translateX(-50%) translateY(14px);
+      background: rgba(24, 24, 24, 0.55);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 18px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      opacity: 0;
+      filter: blur(6px);
+      transition: opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+      z-index: 1503;
+      user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      pointer-events: none;
+      backdrop-filter: blur(10px) saturate(180%);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    }
+    #image-modal-hint .hint-content { display: grid; gap: 8px; }
+    #image-modal-hint .hint-line {
+      display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+      transform: translateY(8px); opacity: 0; filter: blur(4px);
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease, filter 0.45s ease;
+    }
+    #image-modal-hint .material-symbols-outlined { font-size: 1.1em; opacity: 0.9; }
+    #image-modal-hint.show { opacity: 1; transform: translateX(-50%) translateY(0); filter: blur(0); }
+    #image-modal-hint.show .hint-line:nth-child(1) { transition-delay: 60ms; transform: translateY(0); opacity: 1; filter: blur(0); }
+    #image-modal-hint.show .hint-line:nth-child(2) { transition-delay: 160ms; transform: translateY(0); opacity: 1; filter: blur(0); }
+    #image-modal-hint.show .hint-line:nth-child(3) { transition-delay: 260ms; transform: translateY(0); opacity: 1; filter: blur(0); }
+    #image-modal-hint.hiding { opacity: 0; filter: blur(6px); transform: translateX(-50%) translateY(12px); }
     
     /* ================== Outros Componentes ================== */
     .spinner-overlay {
@@ -1141,6 +1317,13 @@ body.sidebar-open #hamburger-btn {
     /* ================== Media Queries para Responsividade ================== */
     @media (max-width: 1200px) {
       #image-stack.grid-view { column-count: 2; }
+    }
+    
+    /* Viewports com pouca altura (ex.: ~620px): preferir 2 colunas no grid desktop */
+    @media (max-height: 640px) and (min-width: 993px) {
+      #image-stack.grid-view .image-wrapper {
+        width: calc(50% - 8px) !important; /* 2 colunas com gap de ~16px total */
+      }
     }
     @media (max-width: 992px) {
       /* Allow the page to scroll on mobile by removing fixed heights */
@@ -1269,6 +1452,21 @@ body.sidebar-open #hamburger-btn {
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 150px;
+      }
+      
+      /* Responsive mapping button */
+      .action-button {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        min-height: 44px;
+      }
+      
+      .action-button .btn-text-loading {
+        padding: 0 8px;
+      }
+      
+      .mapping-progress-text {
+        font-size: 0.8rem;
       }
 
       /* --- Estilos Responsivos para o Modal --- */
@@ -1501,15 +1699,23 @@ body.sidebar-open #hamburger-btn {
   background-color: var(--bg-color);
   color: var(--text-color);
   border: 1px solid #D0D0D0;
-  padding: 12px;
+  padding: 12px 16px;
   font-size: 1rem;
   font-weight: 700;
   border-radius: 24px;
-    transition: color 0.3s ease, background-color 0.3s ease, transform var(--transition-speed) var(--transition-easing), box-shadow var(--transition-speed) var(--transition-easing);
+  transition: color 0.3s ease, background-color 0.3s ease, transform var(--transition-speed) var(--transition-easing), box-shadow var(--transition-speed) var(--transition-easing);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
 }
 
 .action-button .btn-text-original {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
   text-align: center;
   transition: opacity 0.3s ease;
@@ -1532,6 +1738,12 @@ body.sidebar-open #hamburger-btn {
   transition: opacity 0.3s ease;
 }
 
+.mapping-progress-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* A barra de progresso laranja */
 .action-button::before {
   content: '';
@@ -1540,10 +1752,25 @@ body.sidebar-open #hamburger-btn {
   left: 0;
   height: 100%;
   width: var(--progress-width, 0%);
-  background-color: var(--primary-color);
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-orange));
   border-radius: inherit;
   z-index: 0;
-  transition: width 0.4s var(--transition-easing), background-color 0.3s ease;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s ease;
+  /* Ensure the progress bar is always visible when width > 0 */
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Efeito de brilho na barra de progresso */
+.action-button.is-loading::before {
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-orange), var(--primary-color));
+  background-size: 200% 100%;
+  animation: shimmer-progress 2s ease-in-out infinite;
+}
+
+@keyframes shimmer-progress {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* O texto branco mascarado */
@@ -1559,15 +1786,28 @@ body.sidebar-open #hamburger-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
   clip-path: inset(0 calc(100% - var(--progress-width, 0%)) 0 0);
-  transition: clip-path 0.4s var(--transition-easing);
+  transition: clip-path 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .action-button.is-loading .btn-text-original {
   opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .action-button.is-loading .btn-text-loading {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+/* Keep loading text visible while resetting the progress back to 0 to avoid flicker */
+.action-button.is-resetting .btn-text-original {
+  opacity: 0;
+}
+.action-button.is-resetting .btn-text-loading {
   opacity: 1;
 }
 
@@ -1581,18 +1821,35 @@ body.sidebar-open #hamburger-btn {
 .action-button.is-success::before {
   width: 100%;
   background-color: var(--bg-color);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background-color 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* NOVO: Garante que o texto mascarado desapareça no sucesso */
+.action-button.is-success .btn-text-loading::after {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* NOVO: Transição do texto para cor padrão após o fundo */
+.action-button.is-success .btn-text-loading {
+  transition: color 0.4s ease 0.8s; /* Delay to wait for background transition */
 }
 
 /* Estado de erro */
 .action-button.is-error::before {
   width: 100%;
   background-color: var(--danger-color);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .action-button.is-error .btn-text-loading::after {
     clip-path: inset(0 0 0 0);
+    transition: clip-path 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .action-button.is-error .btn-text-loading {
     color: white;
+    transition: color 0.4s ease 0.8s; /* Delay to wait for background transition */
 }
 
 
@@ -1978,7 +2235,48 @@ body.sidebar-open #hamburger-btn {
   /* Ícones */
   .system-title, .logo {
     color: var(--primary-color);
-    }
+  }
+  
+  /* Progress Bar Dark Mode */
+  .progress-bar {
+    background-color: var(--bg-light-gray);
+  }
+  
+  .progress-fill {
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-orange));
+  }
+  
+  .progress-bar::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  }
+  
+  /* Mapping Button Dark Mode */
+  .action-button {
+    background-color: var(--bg-light-gray);
+    border-color: #4a4a4c;
+  }
+  
+  .action-button:hover {
+    border-color: #6a6a6c;
+    background-color: #3a3a3c;
+  }
+  
+
+  
+  /* Dark mode text masking fix */
+  .action-button .btn-text-loading::after {
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  
+  .action-button.is-success .btn-text-loading::after {
+    color: var(--text-color);
+  }
+  
+  .action-button.is-error .btn-text-loading::after {
+    color: white;
+  }
   }
 
   </style>

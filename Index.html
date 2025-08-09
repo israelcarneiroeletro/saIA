@@ -39,9 +39,12 @@
                 <label class="instruction-label">Cole abaixo o link da sua pasta com as subpastas que deseja analisar</label>
                 <input type="text" class="text-input" id="folder-link-input" placeholder="Link da sua pasta aqui...">
                 <button id="map-folder-btn" class="action-button">
-                    <span class="btn-text-original">Mapear Pasta</span>
-                    <div class="btn-text-loading" data-text="Analisando pastas...">
-                        Analisando pastas...
+                    <span class="btn-text-original">
+                        <span class="material-symbols-outlined">folder_open</span>
+                        <span>Mapear Pasta</span>
+                    </span>
+                    <div class="btn-text-loading" data-text="Mapeando pastas...">
+                        <span class="mapping-progress-text">Mapeando pastas...</span>
                     </div>
                 </button>
             </div>
@@ -91,6 +94,18 @@
     <nav id="sidebar">
       <h3 style="padding-bottom: 10px;padding-left: 1.4rem;">Fila de Análise</h3>
       <ul id="queue-list"></ul>
+      
+      <!-- Progress Bar -->
+      <div id="analysis-progress-container" class="progress-container">
+        <div class="progress-info">
+          <span class="progress-text">Progresso da Revisão</span>
+          <span class="progress-percentage">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
+      
       <button id="open-sheet-btn" class="primary" style="margin-left: 0;" disabled>
         <span class="material-symbols-outlined">border_inner</span>
         Abrir Planilha
@@ -212,6 +227,9 @@
 
   <!-- Overlay de Transição Mágica -->
   <div id="magic-transition-overlay"></div>
+
+  <!-- Coach Hint (Tutorial) - TEMPORARILY COMMENTED OUT -->
+  <!-- <div id="coach-hint" aria-live="polite"></div> -->
 
   <?!= include('JavaScript'); ?>
 </body>

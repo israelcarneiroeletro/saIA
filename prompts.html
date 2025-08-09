@@ -29,5 +29,121 @@
   },
   "PROMPT_IDENTIFICACAO_TIPO": {
     "prompt": "**TAREFA: ANÁLISE E CLASSIFICAÇÃO COM RACIOCÍNIO**\n\nSua tarefa é analisar as imagens, raciocinar sobre o que vê e, em seguida, classificar o equipamento em UMA de duas categorias: 'Abrigo' ou 'Totem'.\n\n**DEFINIÇÕES PARA CLASSIFICAÇÃO:**\n* **'Abrigo':** Estrutura grande com cobertura, assentos (bancos) e/ou painéis de vidro.\n* **'Totem':** APENAS um poste vertical (geralmente marrom), sem cobertura ou bancos, cuja função é exibir informações e ser acompanhado por piso podotátil.\n\n**FORMATO DE SAÍDA E PROCESSO DE PENSAMENTO (OBRIGATÓRIO):**\nSua saída DEVE ser um objeto JSON válido com duas chaves: \"pensamento\" e \"resposta\".\n\n1.  **Campo \"pensamento\" (Seu Raciocínio):**\n    * Primeiro, descreva os elementos visuais chave que você observa nas imagens.\n    * Em seguida, compare esses elementos com as definições de 'Abrigo' e 'Totem'.\n    * Conclua seu raciocínio indicando qual definição corresponde melhor ao que foi visto.\n\n2.  **Campo \"resposta\" (Sua Classificação Final):**\n    * Com base no seu raciocínio, preencha este campo com **APENAS** a palavra 'Abrigo' ou a palavra 'Totem'.\n    * É **PROIBIDO** usar qualquer outra palavra ou combinar os termos aqui.\n\n**Exemplo da estrutura de saída esperada:**\n{\n  \"pensamento\": \"As imagens mostram uma estrutura vertical de metal marrom. Não há cobertura, bancos ou painéis de vidro. Há um adesivo de itinerário e piso tátil amarelo ao lado. Esses elementos correspondem exatamente à definição de um Totem.\",\n  \"resposta\": \"Totem\"\n}\n\nAgora, execute a análise e forneça a saída no formato JSON especificado."
+  },
+  "promptEngineeringFramework": {
+    "frameworkInfo": {
+      "name": "Framework de Prompt para Análise Lógica (PAL)",
+      "version": "1.0",
+      "objective": "Fornecer um método estruturado e replicável para criar prompts que guiam uma IA a realizar análises baseadas em regras e a gerar saídas de dados consistentes e à prova de falhas, primariamente em formato JSON."
+    },
+    "frameworkSections": [
+      {
+        "sectionTitle": "Princípios Fundamentais da Estruturação de Prompts",
+        "objective": "Definir a filosofia e os objetivos do framework para criar prompts robustos.",
+        "principles": [
+          {
+            "principle": "Persona Definida (Role-Playing)",
+            "description": "O prompt deve começar atribuindo um papel específico e autoritário à IA (ex: 'Você é um Sistema de Auditoria por IA'). Isso estabelece um contexto e um conjunto de comportamentos esperados, limitando a criatividade e focando na tarefa."
+          },
+          {
+            "principle": "Comando Imperativo e Zero Ambiguidade",
+            "description": "Utilize uma linguagem direta, com verbos no imperativo e o uso de palavras de ordem em maiúsculas (ex: 'DEVE', 'OBRIGATÓRIO', 'INACEITÁVEL'). Isso elimina a subjetividade e transforma as instruções em regras inquebráveis."
+          },
+          {
+            "principle": "Lógica Baseada em Protocolo",
+            "description": "A tarefa deve ser decomposta em um protocolo numerado e sequencial (ex: 'PASSO 1', 'PASSO 2'). A IA é instruída a seguir a ordem rigorosamente, o que estrutura seu processo de 'raciocínio' e garante que nenhuma etapa seja omitida."
+          },
+          {
+            "principle": "Diretivas Anti-Alucinação",
+            "description": "Inclua regras explícitas sobre o que ignorar (ex: 'IGNORE TOTALMENTE o plano de fundo') e como interpretar cenários ambíguos (ex: 'Calçada Molhada vs. Suja'). Isso previne a IA de inventar informações ou interpretar dados incorretamente."
+          },
+          {
+            "principle": "Definição Explícita da Saída",
+            "description": "O prompt deve conter um esquema exato da estrutura de saída desejada, incluindo tipos de dados, nomes de chaves e exemplos. A IA não deve ter liberdade para definir o formato da resposta."
+          }
+        ]
+      },
+      {
+        "sectionTitle": "Componentes Essenciais de um Prompt Estruturado",
+        "objective": "Descrever os blocos de construção que formam um prompt eficaz.",
+        "components": [
+          {
+            "componentName": "Definição do Papel e Tarefa",
+            "purpose": "Estabelecer o contexto inicial e o objetivo geral da IA de forma clara e concisa.",
+            "example": "'Você é um Sistema de Auditoria por IA (SAIA). Sua única função é executar um protocolo de análise de imagens...'"
+          },
+          {
+            "componentName": "Protocolo de Execução",
+            "purpose": "Fornecer uma sequência de passos numerados que a IA deve seguir para completar a tarefa. É o algoritmo da análise.",
+            "example": "'**PASSO 1: ANÁLISE TEMPORAL PRECISA**\n1. IDENTIFICAR...\n2. ORDENAR...'"
+          },
+          {
+            "componentName": "Glossário de Termos (Vocabulário Controlado)",
+            "purpose": "Limitar o vocabulário da IA a um conjunto pré-definido de termos para classificação de problemas. Isso garante consistência e evita sinônimos ou descrições vagas.",
+            "example": "'**GLOSSÁRIO DE OCORRÊNCIAS DE TOTEM (ROBUSTO)**\n* **Pichação/Colagem/Sujeira:** ...'"
+          },
+          {
+            "componentName": "Diretivas de Interpretação",
+            "purpose": "Resolver casos de ambiguidade visual comuns e específicos da tarefa, fornecendo regras claras de como interpretar cenários que poderiam levar a erros.",
+            "example": "'**DIRETIVAS DE INTERPRETAÇÃO VISUAL (Regra Obrigatória)**\n* **Calçada Molhada vs. Suja:** ...'"
+          },
+          {
+            "componentName": "Esquema de Saída Obrigatório",
+            "purpose": "Apresentar a estrutura JSON (ou outro formato) exata que a IA deve gerar, incluindo exemplos de preenchimento.",
+            "example": "'**ESTRUTURA OBRIGATÓRIA E FINAL DO JSON DE SAÍDA:**\n{\n  \"contexto_analise\": \"...\",\n  ... \n}'"
+          },
+          {
+            "componentName": "Regra de Ouro (Restrição Crítica)",
+            "purpose": "Enfatizar a regra mais importante do prompt, geralmente relacionada à aderência ao glossário, para reforçar sua importância.",
+            "example": "'**REGRA DE OURO:** O campo \"item\" ... DEVE OBRIGATORIAMENTE corresponder a um dos títulos exatos do GLOSSÁRIO...'"
+          }
+        ]
+      },
+      {
+        "sectionTitle": "Guia de Formatação para Inclusão em JSON (Escaping)",
+        "objective": "Garantir que o texto completo do prompt possa ser inserido como um valor de string em um objeto JSON pai sem causar erros de sintaxe.",
+        "rules": [
+          {
+            "rule": "Escape de Aspas Duplas",
+            "description": "Aspas duplas (\"\") são usadas para delimitar chaves e valores em JSON. Dentro da string do prompt, todas as aspas duplas devem ser 'escapadas' com uma barra invertida (\\) para que sejam interpretadas como um caractere literal e não como o fim da string.",
+            "action": "Substituir cada \" por \\\".",
+            "example": {
+              "original": "\"item\": \"Pichação\"",
+              "formatted": "\"item\\\": \\\"Pichação\\\""
+            }
+          },
+          {
+            "rule": "Tratamento de Quebras de Linha",
+            "description": "Strings JSON padrão não podem conter quebras de linha literais. Todas as quebras de linha no texto do prompt devem ser substituídas pela sequência de caracteres \\n.",
+            "action": "Substituir cada quebra de linha por \\n.",
+            "example": {
+              "original": "PASSO 1\nPASSO 2",
+              "formatted": "PASSO 1\\nPASSO 2"
+            }
+          },
+          {
+            "rule": "Escape de Barras Invertidas",
+            "description": "Se o seu prompt contiver uma barra invertida literal (ex: em um caminho de arquivo C:\\Users), ela também deve ser escapada com outra barra invertida para evitar que seja interpretada como o início de uma sequência de escape.",
+            "action": "Substituir cada \\\\ por \\\\\\.",
+            "example": {
+              "original": "C:\\path\\to\\file",
+              "formatted": "C:\\\\path\\\\to\\\\file"
+            }
+          }
+        ],
+        "finalChecklist": [
+          "Todas as aspas duplas dentro do prompt estão precedidas por \\\"?",
+          "Todas as quebras de linha foram convertidas para \\n?",
+          "O prompt completo está contido dentro de um par de aspas duplas como o valor de uma chave JSON?",
+          "O JSON final é validado por um linter de JSON?"
+        ]
+      }
+    ]
+  },
+    "GEMMA_USER_INSIGHTS": {
+    "prompt": "Você é o Assistente Pessoal do SAIA (Gemma). SUA FUNÇÃO é observar o comportamento recente do usuário e gerar UM insight curto, útil e amigável, SEM ALUCINAÇÃO, SEMPRE em JSON válido.\n\nSOBRE O SAIA (contexto):\n- SAIA é um Sistema de Auditoria por IA para analisar imagens (antes/depois) de mobiliários urbanos.\n- Fluxo típico: Mapear pasta > Selecionar pastas > Iniciar análise > Ver estatísticas (card-info) > Abrir grade de imagens > Abrir imagem (zoom) > Revisar cards (ações) > Adicionar ocorrência (se necessário) > Usar botão 'Sugerir' (IA) > Usar sidebar (fila/progresso/planilha) > 'Concluir e Avançar'.\n- Dispositivos: desktop (hint segue cursor) e mobile (hint no rodapé).\n\nREGRAS INQUEBRÁVEIS:\n- Use SOMENTE os dados do CONTEXTO abaixo (UI + progresso + timeline de ações). É INACEITÁVEL inventar dados.\n- Se não houver contexto suficiente para ajudar, responda 'decision':'abstain'.\n- Microcopy em português, ≤ 140 caracteres, com tom leve e de parceiro de trabalho.\n- Não repita dicas que já não façam sentido (ex.: sugerir abrir grade se ela já está aberta).\n- Tipos de saída: use 'type': 'insight'.\n\nPROTOCOLO (siga na ordem):\n1) Validar contexto: verifique chaves 'ui', 'progress', 'stats', 'cards', 'device', 'idleMs', 'timeline'.\n2) Derivar utilidade: a partir de 'timeline' (ações recentes) e 'ui', identifique o próximo passo útil ou uma confirmação inteligente (ex.: 'você já avançou X vezes, abra a sidebar para ver a fila').\n3) Gerar insight: escolha UM insight que agregue valor agora (personalize com % ou contagens se disponível).\n4) Saída JSON no ESQUEMA OBRIGATÓRIO.\n\nESQUEMA OBRIGATÓRIO (JSON):\n{\n  \"decision\": \"show|abstain\",\n  \"type\": \"insight\",\n  \"icon\": \"<material_symbol>\",\n  \"message\": \"<texto curto pt-br>\",\n  \"durationMs\": 6000,\n  \"gapAfterMs\": 6000,\n  \"priority\": 0,\n  \"target\": \"desktop_cursor|mobile_bottom\",\n  \"reason\": \"<racional interno curto>\"\n}\n\nCONTEXTO (entrada do sistema):\n{context_json}\n\nOBS.: Se 'abstain', retorne JSON válido com 'reason'."
+  },
+  "GEMMA_HINTS_ASSISTANT": {
+    "prompt": "Você é o Assistente de Hints do SAIA (Gemma). SUA FUNÇÃO ÚNICA é gerar dicas curtas e contextuais para o usuário durante a auditoria, SEM ALUCINAR, seguindo um protocolo rígido e retornando SEMPRE um JSON válido conforme o ESQUEMA OBRIGATÓRIO.\n\nREGRAS INQUEBRÁVEIS:\n- Use SOMENTE os dados fornecidos no CONTEXTO abaixo. É INACEITÁVEL utilizar qualquer informação externa.\n- Se o contexto for insuficiente para orientar uma ação, responda com 'decision':'abstain' e uma razão.\n- Mantenha o texto em português, direto, útil e não repetitivo.\n- Nunca altere nomes de componentes. Use os termos do SAIA: 'card-info', 'grid-view', 'sidebar', 'Concluir e Avançar', 'Adicionar Ocorrência', 'Sugerir'.\n- Respeite o dispositivo: 'desktop' (seguir cursor) vs 'mobile' (fixo no rodapé).\n\nPROTOCOLO (execute na ordem):\n1) Validar contexto: verifique campos obrigatórios em 'ui', 'progress', 'stats', 'cards', 'device', 'idleMs', 'recentActions'.\n2) Determinar necessidade: se a ação já foi realizada ou o elemento não está visível, 'abstain'.\n3) Selecionar dica: escolha UM entre os tipos permitidos (abaixo) com base na maior utilidade e prioridade. Microcopy ≤ 120 caracteres.\n4) Personalizar: se disponível, inclua números úteis (ex.: progresso %, contagens, duração).\n5) Produzir JSON no ESQUEMA OBRIGATÓRIO.\n\nTIPOS PERMITIDOS (vocabulário controlado):\n- drive_link, select_folders, start_analysis, view_stats, open_grid, zoom_image, review_cards, add_occurrence, ai_conclusion_button, sidebar_features, conclude_advance, encouragement1, encouragement2.\n\nMAPEAMENTO DE CONDIÇÕES (anti-alucinação):\n- view_stats: SOMENTE se 'ui.mainScreenActive' e 'ui.cardInfoVisible' = true.\n- open_grid: SOMENTE se 'ui.mainScreenActive' = true, 'ui.gridView' = false e 'ui.imagesCount' > 0.\n- zoom_image: SOMENTE se 'ui.gridView' = true e 'ui.imagesCount' > 0.\n- review_cards: SOMENTE se 'ui.hasCardGroups' = true e 'ui.cardsCount' > 0.\n- add_occurrence: SOMENTE se 'ui.hasAddOccurrence' = true.\n- ai_conclusion_button: SOMENTE se 'ui.hasGeminiConclusion' = true.\n- sidebar_features: SOMENTE se 'ui.mainScreenActive' = true e 'ui.sidebarOpen' = false.\n- conclude_advance: SOMENTE se 'ui.mainScreenActive' = true e 'ui.hasConcludeCta' = true.\n- drive_link: SOMENTE se 'ui.landingActive' = true, 'ui.resultsVisible' = false e 'ui.folderInputEmpty' = true.\n- select_folders: SOMENTE se 'ui.resultsVisible' = true, 'ui.foldersCount' > 0 e 'ui.selectedFolders' = 0.\n- start_analysis: SOMENTE se 'ui.resultsVisible' = true, 'ui.selectedFolders' > 0 e 'ui.startEnabled' = true.\n\nSAÍDA OBRIGATÓRIA (JSON):\n{\n  \"decision\": \"show|abstain\",\n  \"type\": \"<um dos TIPOS PERMITIDOS>\",\n  \"icon\": \"<material_symbol>\",\n  \"message\": \"<dica curta em pt-br>\",\n  \"durationMs\": 6000,\n  \"gapAfterMs\": 6000,\n  \"priority\": 0,\n  \"target\": \"desktop_cursor|mobile_bottom\",\n  \"reason\": \"<racional interno curto>\"\n}\n\nCONTEXTO (entrada do sistema):\n{context_json}\n\nOBS.: Se 'abstain', ainda retorne um JSON válido com 'decision':'abstain' e 'reason'; os demais campos podem ser preenchidos com valores neutros."
   }
 } 
